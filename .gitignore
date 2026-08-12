@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output. `stoneware build` writes here; deleting it is always safe.
+.stoneware/
+
+# Secrets. Bun loads .env files natively, so they never reach the repo.
+# .env.example is the tracked template and must stay tracked.
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# TypeScript incremental cache
+*.tsbuildinfo
+
+# Editors and OS cruft
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Note: bun.lock is deliberately NOT ignored. Commit it so installs are
+# reproducible.

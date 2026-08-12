@@ -1,0 +1,21 @@
+body {
+  margin: 0;
+  font: 16px/1.6 ui-sans-serif, system-ui, sans-serif;
+  color: #16130f;
+  background: #fbf9f6;
+}
+
+main {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 4rem 1.5rem;
+}
+
+button {
+  font: inherit;
+  padding: 0.5rem 1rem;
+  border: 1px solid #ddd6cc;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
