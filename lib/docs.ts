@@ -267,7 +267,7 @@ export default function Home({ params }: PageProps) {
     blocks: [
       {
         kind: "p",
-        text: "A new project is eleven files. There is no hidden state, no lockfile-adjacent cache to understand, and nothing generated that you are not meant to read.",
+        text: "A new project is twelve files. There is no hidden state, no lockfile-adjacent cache to understand, and nothing generated that you are not meant to read.",
       },
       {
         kind: "figure",
@@ -275,7 +275,9 @@ export default function Home({ params }: PageProps) {
         text: `my-site/
 │
 ├── routes/                    Server-only. Never ships JavaScript.
-│   └── index.tsx              A page. Maps to "/"
+│   ├── index.tsx              A page. Maps to "/"
+│   └── _404.tsx               Shown for any path that does not match.
+│                              Leading _ means it is not itself a page.
 │
 ├── islands/                   The only place client JS originates.
 │   └── Counter.tsx            Hydrates on load. Gets its own bundle.
