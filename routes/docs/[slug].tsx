@@ -7,6 +7,14 @@ import { REPO_ISSUES_URL } from "../../lib/site.ts";
 import { themeFromRequest } from "../../lib/theme.ts";
 import Feedback from "../../islands/Feedback.tsx";
 
+/**
+ * Which pages `stoneware export` should generate for this pattern. A route with
+ * [params] cannot be enumerated on its own, so the module names them.
+ */
+export function staticPaths() {
+  return DOCS.map((page) => ({ slug: page.slug }));
+}
+
 export default function DocPage({ params, request }: PageProps) {
   const slug = params.slug ?? "";
   const page = getDoc(slug);

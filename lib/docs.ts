@@ -334,7 +334,8 @@ export default function Home({ params }: PageProps) {
 │
 ├── static/                 Served under /_stoneware/*, immutable (content-hashed).
 │   ├── Counter-jzp1gax8.js     One entry chunk per island.
-│   └── chunk-gcapcpwn.js       Shared runtime: signals + hydrate.
+│   ├── chunk-gcapcpwn.js       Shared runtime: signals + hydrate.
+│   └── styles-4kq2n7wd.css     Every .css found beside your code.
 │
 └── entries/                Generated island entry points. Build input.`,
       },
@@ -345,6 +346,10 @@ export default function Home({ params }: PageProps) {
       {
         kind: "p",
         text: "The shared chunk is why a page with three islands does not download signals three times. Each island entry is small; the runtime they have in common is hoisted out once.",
+      },
+      {
+        kind: "quote",
+        text: "The stylesheet only appears if the project has a .css file under routes/, islands/ or lib/. A new project styles itself from public/styles.css instead, at a fixed URL — both work, and the co-located route is the one that scales past a single file.",
       },
     ],
   },
@@ -611,6 +616,130 @@ export const subscriberCount = signal(1284);`,
   },
 
   {
+    slug: "error-pages",
+    title: "Error pages",
+    summary: "Custom 404 and 500 pages, and the three properties that hold whether or not you write them.",
+    blocks: [
+      {
+        kind: "p",
+        text: "Add routes/_404.tsx or routes/_500.tsx and it replaces the built-in page. There is no registration step and no config key — the file existing is the whole API.",
+      },
+      {
+        kind: "code",
+        label: "routes/_404.tsx",
+        text: `import type { ErrorPageProps } from "stoneware";
+import { Layout } from "../lib/Layout.tsx";
+
+export default function NotFound({ url }: ErrorPageProps) {
+  return (
+    <Layout title="Not found">
+      <h1>No page at {url.pathname}</h1>
+    </Layout>
+  );
+}`,
+      },
+      {
+        kind: "p",
+        text: "These are ordinary templates rendered through the ordinary pipeline: your layout, your stylesheet, your islands. A 404 is a page real visitors reach, and it should not be the only one on the site that looks unfinished.",
+      },
+
+      { kind: "h2", text: "What _500 receives" },
+      {
+        kind: "p",
+        text: "Both pages get status, message, request and url. _500 also gets error — the thrown value — populated in development only. In production it is undefined.",
+      },
+      {
+        kind: "quote",
+        text: "That is decided by the framework rather than left to each error page to handle responsibly. An exception message routinely carries a file path, a query, or a connection string, and the page that renders it is the one page guaranteed to be shown when something has already gone wrong.",
+      },
+
+      { kind: "h2", text: "An underscore means it is not a page" },
+      {
+        kind: "p",
+        text: "A route file whose name starts with _ is a convention, not something servable. Requesting /_404 does not return it with a 200 — it returns the 404 page, with a 404 status, like any other path that does not exist.",
+      },
+
+      { kind: "h2", text: "Three properties you get either way" },
+      {
+        kind: "list",
+        items: [
+          "Failure is terminal. If your _500.tsx throws, the built-in page is served — the error path never re-enters itself.",
+          "Errors are never cached. Cache-Control: no-store, so a 404 held by a CDN cannot outlive the deploy that adds the page.",
+          "Security headers still apply. Error responses leave through the same single exit as every other response.",
+        ],
+      },
+      {
+        kind: "p",
+        text: "The first one is the reason error rendering is separate from page rendering rather than reusing it. Everywhere else, a thrown error escalates to the 500 page; here there is nowhere left to escalate to, so failure has to stop.",
+      },
+      {
+        kind: "quote",
+        text: "stoneware export writes the 404 page to dist/404.html — the file Cloudflare Pages, Netlify and GitHub Pages each serve for an unmatched path. A static export gets your error page too, not the host's default one.",
+      },
+    ],
+  },
+
+  {
+    slug: "styling",
+    title: "Styling",
+    summary: "Co-located CSS, collected by the build, with no import and no link tag to maintain.",
+    blocks: [
+      {
+        kind: "p",
+        text: "Put a stylesheet next to the code it styles. The build finds it, bundles every sheet into one content-hashed file, and injects the <link> into <head> for you.",
+      },
+      {
+        kind: "figure",
+        label: "one .css beside each thing it styles",
+        text: `routes/index.tsx        lib/Card.tsx        islands/Counter.tsx
+routes/index.css        lib/Card.css        islands/Counter.css
+        │                    │                     │
+        └────────────────────┴─────────────────────┘
+                             │
+                    styles-4kq2n7wd.css      one file, hashed
+                             │
+                    <link> injected into <head>`,
+      },
+      {
+        kind: "p",
+        text: "There is nothing to import and nothing to remember. Deleting a component deletes its styles with it, because the two live in the same folder and the build stops finding one when you remove the other.",
+      },
+
+      { kind: "h2", text: "Membership is by location, not by import" },
+      {
+        kind: "p",
+        text: "This is the part worth understanding, because it is not how most bundlers work. Routes and lib/ are server modules the bundler never sees — an import \"./Card.css\" there resolves to a path string at runtime and would never reach a stylesheet. Scanning three directories gives one rule everywhere instead of a different rule per directory.",
+      },
+      {
+        kind: "quote",
+        text: "Files are sorted before bundling, so the cascade is deterministic and the content hash changes only when the CSS does. Two builds of the same source produce the same filename, which is what makes the immutable cache header on it safe.",
+      },
+      {
+        kind: "p",
+        text: "The three scanned directories are routes/, islands/ and lib/. Anything under public/ is still served as-is at the URL root, which remains the right place for a stylesheet you want at a fixed, unhashed URL.",
+      },
+
+      { kind: "h2", text: "Why not CSS Modules" },
+      {
+        kind: "p",
+        text: "Bun supports CSS Modules in the bundler, but its runtime returns the file path rather than the generated class map. An island is rendered in both places — once on the server for the initial HTML, once in the browser on hydration — so the two would disagree about what a class is called, and the markup would not match the stylesheet.",
+      },
+      {
+        kind: "code",
+        label: "the mismatch",
+        text: `import styles from "./Counter.module.css";
+
+styles.button  // bundler: "Counter_button_a1b2c3"
+               // runtime: undefined — the import is a path string`,
+      },
+      {
+        kind: "p",
+        text: "Rather than ship scoping that works in one half of a render and silently fails in the other, v0.1 does not offer it. Scoping is naming discipline for now — a prefix per component is enough at this size, and real scoping can arrive later without changing where files live.",
+      },
+    ],
+  },
+
+  {
     slug: "server-actions",
     title: "Server actions",
     summary: "Form handling where CSRF verification is structural, not a decorator.",
@@ -721,7 +850,8 @@ export async function POST({ request }: ActionContext) {
         label: "terminal",
         text: `stoneware dev     # dev server with hot reload
 stoneware build   # production build
-stoneware start   # run the production server bundle`,
+stoneware start   # run the production server bundle
+stoneware export  # prerender every page to static HTML`,
       },
       { kind: "h2", text: "Development" },
       {
@@ -734,6 +864,7 @@ stoneware start   # run the production server bundle`,
         items: [
           "One server bundle, with every route and island statically imported so no transpilation happens per request.",
           "One content-hashed client chunk per island, plus a shared runtime chunk.",
+          "One content-hashed stylesheet, collected from every .css under routes/, islands/ and lib/.",
           "An island manifest, so the server serves pre-built chunks instead of rebuilding at boot.",
         ],
       },
@@ -741,6 +872,26 @@ stoneware start   # run the production server bundle`,
         kind: "quote",
         text: "Route modules are inlined into the server bundle, but path matching still uses Bun.FileSystemRouter, so routes/ must exist at runtime. It is read for its filenames, never its contents.",
       },
+      { kind: "h2", text: "Static export" },
+      {
+        kind: "p",
+        text: "stoneware export prerenders every page to a directory of plain HTML files. It builds first, then fetches each route through the ordinary request pipeline — the same router, the same renderer, the same response headers — so what lands on disk is byte-identical to what the server would have sent. There is no second rendering path to drift.",
+      },
+      {
+        kind: "code",
+        language: "sh",
+        label: "terminal",
+        text: `$ stoneware export --out dist
+
+[stoneware] exported 12 page(s) in 486ms
+  output   /srv/my-site/dist
+  skipped  /subscribe (renders a CSRF token)`,
+      },
+      {
+        kind: "p",
+        text: "The output has no runtime requirement at all, which is the point: it deploys to Cloudflare Pages, Netlify, GitHub Pages or any CDN — hosts that cannot run Bun and so cannot run a Stoneware server.",
+      },
+
       { kind: "h2", text: "Environment" },
       {
         kind: "p",
@@ -815,12 +966,64 @@ bun server.ts        # serves`,
   Vercel                  yes           no         needs includeFiles
                                                    (it bundles the function)
 
-  Netlify Functions       no            -          wrong runtime
-  Cloudflare Workers      no            -          wrong runtime`,
+  Netlify / Cloudflare     no           -          wrong runtime
+  GitHub Pages, any CDN    no           -          no runtime at all
+                                                   -> stoneware export`,
       },
       {
         kind: "p",
-        text: "Anywhere you can run `bun server.ts` against the project directory, nothing extra is required — the directory is simply there. Cloudflare Workers run V8 isolates and Netlify Functions run Node, so neither can host a Stoneware server at all; for those, the site would have to be prerendered to static HTML, which v0.1 does not do.",
+        text: "Anywhere you can run `bun server.ts` against the project directory, nothing extra is required — the directory is simply there. Cloudflare Workers run V8 isolates and Netlify Functions run Node, so neither can host a Stoneware server; for those, prerender the site instead.",
+      },
+
+      { kind: "h2", text: "Static export" },
+      {
+        kind: "p",
+        text: "stoneware export writes the whole site to a directory of plain files, which removes the runtime requirement entirely. Every page is fetched through the ordinary request pipeline rather than a second rendering path, so the HTML on disk is byte-identical to what the server would have sent.",
+      },
+      {
+        kind: "code",
+        language: "sh",
+        label: "terminal",
+        text: `stoneware export --out dist`,
+      },
+      {
+        kind: "figure",
+        label: "dist/",
+        text: `dist/
+├── index.html                 <- routes/index.tsx
+├── 404.html                   <- routes/_404.tsx, if you have one
+├── docs/
+│   ├── index.html             <- routes/docs/index.tsx
+│   └── routing/index.html     <- routes/docs/[slug].tsx
+├── _stoneware/                island chunks + the hashed stylesheet
+└── mark.svg                   everything from public/`,
+      },
+      {
+        kind: "p",
+        text: "A page is written as <path>/index.html rather than <path>.html, so a static host serves it at the URL the dev server used — no trailing-slash redirect and no per-host rewrite rules to write.",
+      },
+      {
+        kind: "p",
+        text: "The 404 page is the exception, because it has no URL of its own. It is produced by requesting a path that cannot match and written to 404.html, which is the filename Cloudflare Pages, Netlify and GitHub Pages each serve for a miss.",
+      },
+      {
+        kind: "p",
+        text: "A route with [params] cannot be enumerated on its own. Export it by having the module say which pages exist; without staticPaths the route is skipped and named in the summary rather than guessed at.",
+      },
+      {
+        kind: "code",
+        label: "routes/docs/[slug].tsx",
+        text: `export function staticPaths() {
+  return DOCS.map((page) => ({ slug: page.slug }));
+}`,
+      },
+      {
+        kind: "quote",
+        text: "Two things are never written: server actions, which have no GET, and any page that renders a CSRF token. A prerendered token would be frozen into the file and handed to every visitor, and one token for everyone is no protection at all. Both are reported at the end of the run, so the omission is visible rather than silent.",
+      },
+      {
+        kind: "p",
+        text: "That last rule is also the boundary of the technique. A form backed by a server action needs a running server; export covers the pages around it, not the action itself. A fully static site is one with no mutating requests.",
       },
 
       { kind: "h2", text: "Vercel" },
