@@ -71,5 +71,10 @@ const app = await createApp(config, { dev: false });
 
 Bun.serve({
   port: Number(Bun.env.PORT ?? 3000),
+  // Bun.serve defaults to localhost, which is loopback-only. Render, Railway,
+  // Fly and every container runtime reach the process through a proxy on
+  // another interface, so binding to localhost makes the service unreachable
+  // and the platform's health check fails without a useful error.
+  hostname: Bun.env.HOST ?? "0.0.0.0",
   fetch: (request) => app.fetch(request),
 });
