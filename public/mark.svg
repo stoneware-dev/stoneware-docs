@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Stoneware">
+  <title>Stoneware</title>
+  <defs>
+    <!-- Glaze runs along the coil: mint where it catches, deep celadon in the
+         turn. Angled so the gradient travels the length of the stroke. -->
+    <linearGradient id="m-glaze" x1="12%" y1="4%" x2="88%" y2="96%">
+      <stop offset="0" stop-color="#D9FFF0" />
+      <stop offset="0.26" stop-color="#A8EACA" />
+      <stop offset="0.62" stop-color="#5EDFCC" />
+      <stop offset="1" stop-color="#1FA898" />
+    </linearGradient>
+
+    <filter id="m-bleed" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2" />
+    </filter>
+  </defs>
+
+  <!-- One continuous coil, two arcs. A letterform survives 16px in a way a
+       ring never did, and it names the thing instead of decorating it. Round
+       caps read as a rolled rope of clay rather than a cut stroke. -->
+  <g fill="none" stroke-linecap="round">
+    <!-- Bloom underneath, so the coil sits in its own light. -->
+    <path d="M 45 19 A 12 12 0 1 0 32 32 A 12 12 0 1 1 19 45"
+          stroke="#5EDFCC" stroke-width="11" filter="url(#m-bleed)" opacity="0.4" />
+    <path d="M 45 19 A 12 12 0 1 0 32 32 A 12 12 0 1 1 19 45"
+          stroke="url(#m-glaze)" stroke-width="10.5" />
+  </g>
+</svg>

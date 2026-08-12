@@ -2,6 +2,8 @@ import type { PageProps } from "stoneware";
 import { Layout } from "../lib/Layout.tsx";
 import { CodeBlock } from "../lib/highlight.tsx";
 import { DOCS } from "../lib/docs.ts";
+import { REPO_SLUG, REPO_URL } from "../lib/site.ts";
+import { themeFromRequest } from "../lib/theme.ts";
 import InstallCommand from "../islands/InstallCommand.tsx";
 import LiveCounter from "../islands/LiveCounter.tsx";
 
@@ -79,21 +81,27 @@ export default function Counter() {
   );
 }`;
 
-export default function Home(_props: PageProps) {
+export default function Home({ request }: PageProps) {
   return (
     <Layout
       title="Stoneware — shape your web application at build/server time"
       description="A server-first, Bun-native web framework. Complete HTML by default, islands for interactivity, signals inside islands, security on before you configure anything."
       section="home"
+      theme={themeFromRequest(request)}
     >
       <section class="shell hero">
         <p class="eyebrow eyebrow--glaze rise">Bun-native · server-first · v0.1</p>
         <h1 class="hero__title rise">
           Shape your web application at <em>build/server time</em>
         </h1>
+        {/* The brand tagline, set apart from the prose: it is the shortest true
+            statement of what the framework does, so it should not be buried. */}
+        <p class="hero__tagline rise">
+          HTML by default. <em>JavaScript by choice.</em>
+        </p>
         <p class="hero__lede rise">
-          A Bun-native, server-first framework where HTML is the default and JavaScript is opt-in.
           Build content-heavy sites without shipping a client runtime to pages that do not need one.
+          Interactivity is opt-in per directory, and the safe path is the default one.
         </p>
         <dl class="stats rise">
           {STATS.map((stat) => (
@@ -110,7 +118,14 @@ export default function Home(_props: PageProps) {
           <a class="btn" href="/docs">
             Read the docs
           </a>
+          <a class="btn" href={REPO_URL} rel="noopener">
+            GitHub ↗
+          </a>
         </div>
+        <p class="demo-note rise">
+          This site is the documentation for <a href={REPO_URL}>{REPO_SLUG}</a> — the framework's
+          own source, issues, and releases live there.
+        </p>
         <div class="scale rise">
           <span>Plain clay</span>
           <span>Bisque</span>

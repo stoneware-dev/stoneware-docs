@@ -3,15 +3,23 @@ import type { PageProps } from "stoneware";
 import { Layout } from "../../lib/Layout.tsx";
 import { Prose } from "../../lib/Prose.tsx";
 import { DOCS, getDoc, getNeighbors } from "../../lib/docs.ts";
+import { REPO_ISSUES_URL } from "../../lib/site.ts";
+import { themeFromRequest } from "../../lib/theme.ts";
 import Feedback from "../../islands/Feedback.tsx";
 
-export default function DocPage({ params }: PageProps) {
+export default function DocPage({ params, request }: PageProps) {
   const slug = params.slug ?? "";
   const page = getDoc(slug);
+  const theme = themeFromRequest(request);
 
   if (!page) {
     return (
-      <Layout title="Not found — Stoneware" description="No such documentation page." section="docs">
+      <Layout
+        title="Not found — Stoneware"
+        description="No such documentation page."
+        section="docs"
+        theme={theme}
+      >
         <div class="shell docs">
           <DocsNav current={slug} />
           <article class="prose">
@@ -31,7 +39,12 @@ export default function DocPage({ params }: PageProps) {
   const { previous, next } = getNeighbors(slug);
 
   return (
-    <Layout title={`${page.title} — Stoneware`} description={page.summary} section="docs">
+    <Layout
+      title={`${page.title} — Stoneware`}
+      description={page.summary}
+      section="docs"
+      theme={theme}
+    >
       <div class="shell docs">
         <DocsNav current={slug} />
 
@@ -49,6 +62,13 @@ export default function DocPage({ params }: PageProps) {
 
           <div class="section">
             <Feedback token={csrfToken()} fieldName={csrfFieldName()} page={slug} />
+            <p class="demo-note">
+              Something wrong in the framework itself rather than the page?{" "}
+              <a href={REPO_ISSUES_URL} rel="noopener">
+                Open an issue on GitHub
+              </a>
+              .
+            </p>
           </div>
         </article>
       </div>

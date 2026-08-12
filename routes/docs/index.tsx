@@ -1,13 +1,16 @@
 import type { PageProps } from "stoneware";
 import { Layout } from "../../lib/Layout.tsx";
 import { DOCS } from "../../lib/docs.ts";
+import { REPO_SLUG, REPO_URL } from "../../lib/site.ts";
+import { themeFromRequest } from "../../lib/theme.ts";
 
-export default function DocsIndex(_props: PageProps) {
+export default function DocsIndex({ request }: PageProps) {
   return (
     <Layout
       title="Documentation — Stoneware"
       description="Guides for routing, islands, server actions, security defaults, and the CLI."
       section="docs"
+      theme={themeFromRequest(request)}
     >
       <div class="shell">
         <section class="hero">
@@ -17,6 +20,9 @@ export default function DocsIndex(_props: PageProps) {
           <p class="hero__lede">
             Stoneware is small on purpose. If a page here feels long, that is a bug in the page rather
             than a sign of depth.
+          </p>
+          <p class="demo-note">
+            Source, issues and releases: <a href={REPO_URL}>{REPO_SLUG}</a>
           </p>
         </section>
 

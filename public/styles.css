@@ -17,24 +17,49 @@
 
 /* --- Palette -------------------------------------------------------------- */
 
+/* Fired and unfired: the same clay, before and after the kiln.
+
+   One set of tokens rather than two. `light-dark()` resolves against the used
+   `color-scheme`, so switching themes is a single property on <html> and no
+   token is ever declared twice - there is no second palette to forget to
+   update. The stylesheet already leans on `color-mix(in oklab, …)` throughout,
+   which shipped in the same generation of browsers, so this adds no new floor.
+
+   Reading order inside each: light first, then dark. */
+
 :root {
-  --stone-900: #0b0f0e;
-  --stone-850: #0f1413;
-  --stone-800: #131a18;
-  --stone-700: #1a2321;
-  --stone-600: #232e2b;
-  --line: #2b3835;
-  --line-soft: #1d2725;
+  /* Both are supported; with neither forced, the OS preference decides. */
+  color-scheme: light dark;
 
-  --chalk: #e8efec;
-  --ash: #97a8a2;
-  --ash-dim: #66766f;
+  /* Sampled from the brand sheet rather than approximated. The fired body is a
+     cool blue-grey stone (#111724), not the green-tinted dark it used to be,
+     and the glaze runs teal rather than green. */
+  --stone-900: light-dark(#f4f4f3, #0d121b);
+  --stone-850: light-dark(#eeeeed, #111726);
+  --stone-800: light-dark(#e8e8e6, #151c2b);
+  --stone-700: light-dark(#dedcdb, #1c2434);
+  --stone-600: light-dark(#cfcdcb, #262f3f);
+  --line: light-dark(#bdbbb9, #303a4a);
+  --line-soft: light-dark(#dad8d6, #1d2534);
 
-  --celadon: #6fcfa6;
-  --celadon-deep: #3f9d7a;
-  --jade: #34d399;
-  --mint: #b7f0d8;
-  --slate: #7e9aa4;
+  /* Warm cream on cool stone - the contrast the wordmark relies on. */
+  --chalk: light-dark(#16191c, #f6f0e9);
+  --ash: light-dark(#5b5f63, #9aa6b2);
+  --ash-dim: light-dark(#6d7176, #6b7684);
+
+  /* Unfired, the glaze has not brightened yet: the light values run darker
+     than the surface rather than lighter, which is also what keeps them
+     legible on it. --mint stays the emphatic end of the range in both, so
+     link hover moves further from the background either way. */
+  --celadon: light-dark(#0f7a68, #5edfcc);
+  --celadon-deep: light-dark(#0a5648, #26bfac);
+  --jade: light-dark(#0d7a5f, #3fe0b8);
+  --mint: light-dark(#0b6252, #a8eaca);
+  --slate: light-dark(#41616b, #7e9aa4);
+
+  /* Ink that sits on the glaze itself, where the surface is dark in both. */
+  --on-glaze: light-dark(#f2f7f4, #06120d);
+  --alarm: light-dark(#a33718, #e8836a);
 
   /* Gradients, declared once so they stay consistent across components. */
   --grad-glaze: linear-gradient(135deg, var(--mint) 0%, var(--celadon) 42%, var(--celadon-deep) 100%);
@@ -56,35 +81,18 @@
 
   /* Written by the FiringGauge island through the CSSOM. 0 → 1. */
   --heat: 0;
-
-  color-scheme: dark;
 }
 
-/* Unfired: the same clay before it goes in. */
-@media (prefers-color-scheme: light) {
-  :root {
-    --stone-900: #f2f5f3;
-    --stone-850: #ecf0ee;
-    --stone-800: #e5ebe8;
-    --stone-700: #dbe3df;
-    --stone-600: #ccd7d2;
-    --line: #bccbc5;
-    --line-soft: #d6dfdb;
+/* An explicit choice, narrowing `color-scheme` to one keyword and with it every
+   light-dark() above. The server writes this attribute from the theme cookie
+   while it renders <html>, so a returning visitor's first paint is already
+   correct; the ThemeToggle island only has to flip it. */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
 
-    --chalk: #12201b;
-    --ash: #55665f;
-    --ash-dim: #78887f;
-
-    --celadon: #1f8a63;
-    --celadon-deep: #14654a;
-    --jade: #12805c;
-    --mint: #2fa87d;
-    --slate: #4a6b74;
-
-    --grad-surface: linear-gradient(160deg, var(--stone-800) 0%, var(--stone-850) 100%);
-
-    color-scheme: light;
-  }
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 /* --- Reset ---------------------------------------------------------------- */
@@ -258,7 +266,8 @@ code {
 
 .wordmark {
   display: inline-flex;
-  align-items: baseline;
+  /* center, not baseline: the mark is an image now and has no baseline to sit on */
+  align-items: center;
   gap: 0.5rem;
   font-family: var(--font-mono);
   font-size: 0.95rem;
@@ -267,15 +276,22 @@ code {
   text-decoration: none;
 }
 
-/* The spy hole: a small glowing aperture into the chamber. */
-.wordmark::before {
-  content: "";
-  width: 0.62rem;
-  height: 0.62rem;
-  border-radius: 50%;
-  background: radial-gradient(circle at 34% 34%, var(--mint), var(--celadon) 52%, var(--celadon-deep));
-  box-shadow: 0 0 10px color-mix(in oklab, var(--celadon) 62%, transparent);
-  animation: breathe 4.2s ease-in-out infinite;
+/* The aperture. This is the real logo asset rather than a CSS approximation of
+   it: the mark has stone shading a radial-gradient cannot reproduce, and
+   shipping one file keeps the site and the favicon provably identical. */
+/* The mark is a transparent letterform, so it takes a glow rather than a tile:
+   a backdrop would box in a shape that is meant to sit directly on the page. */
+.wordmark__mark {
+  width: 1.3rem;
+  height: 1.3rem;
+  display: block;
+  filter: drop-shadow(0 0 7px color-mix(in oklab, var(--celadon) 40%, transparent));
+  transition: filter 0.25s ease, transform 0.25s ease;
+}
+
+.wordmark:hover .wordmark__mark {
+  filter: drop-shadow(0 0 13px color-mix(in oklab, var(--celadon) 70%, transparent));
+  transform: translateY(-1px);
 }
 
 @keyframes breathe {
@@ -289,6 +305,9 @@ code {
   font-family: var(--font-mono);
   font-size: 0.78rem;
   letter-spacing: 0.06em;
+  /* Three children now: the auto margin pushes the nav and the tools that
+     follow it to the right, leaving the wordmark alone on the left. */
+  margin-left: auto;
 }
 
 .masthead nav a {
@@ -317,11 +336,131 @@ code {
     font-size: 0.72rem;
   }
 
+  /* Both tools stay - they are the two controls with no equivalent elsewhere
+     on the page - but the divider and its padding are the first thing to go. */
+  .tools {
+    gap: 0.5rem;
+    padding-left: 0;
+    margin-left: 0;
+    border-left: 0;
+  }
+
   /* Quick start is one tap away from both the hero button and the docs
      sidebar, so it is the one that gives up its seat first. */
   .masthead nav a:last-child {
     display: none;
   }
+}
+
+/* --- Masthead tools (repository link, theme switch) ----------------------- */
+
+.tools {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding-left: 1.1rem;
+  margin-left: 0.35rem;
+  border-left: 1px solid var(--line-soft);
+}
+
+.iconlink {
+  display: inline-flex;
+  color: var(--ash);
+  /* The mark is the affordance; an underline under an icon reads as a smudge. */
+  text-decoration: none;
+  transition: color 0.18s ease;
+}
+
+.iconlink:hover {
+  color: var(--celadon);
+}
+
+.iconlink svg {
+  display: block;
+}
+
+/* The switch.
+
+   Nothing here is driven by JavaScript state. The lit icon comes from the
+   resolved color-scheme through light-dark(), and the knob's side from the
+   three rules below - so the server renders the switch already in the correct
+   position, and it follows the OS if that changes while the page is open. The
+   island contributes the click and the cookie, nothing else. */
+.theme {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0.3rem 0.4rem;
+  background: none;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  color: inherit;
+}
+
+.theme__track {
+  position: relative;
+  width: 1.95rem;
+  height: 0.95rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--stone-700);
+  transition: border-color 0.2s ease;
+}
+
+.theme:hover .theme__track {
+  border-color: var(--celadon);
+}
+
+.theme__knob {
+  position: absolute;
+  left: 0.13rem;
+  top: 50%;
+  width: 0.63rem;
+  height: 0.63rem;
+  /* An explicit half-height offset rather than translateY(-50%): the transform
+     below owns the horizontal travel and cannot share the property. */
+  margin-top: -0.315rem;
+  border-radius: 50%;
+  background: var(--grad-glaze);
+  box-shadow: 0 0 8px -1px color-mix(in oklab, var(--celadon) 60%, transparent);
+  transform: translateX(0.98rem);
+  transition: transform 0.24s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* light-dark() takes colours only, so the knob's side is stated the long way:
+   dark above, light in the two cases that resolve to light. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .theme__knob {
+    transform: translateX(0);
+  }
+}
+
+:root[data-theme="light"] .theme__knob {
+  transform: translateX(0);
+}
+
+/* Sun and moon: whichever theme is active lights its own icon and dims the
+   other. Both are drawn from a single element - no glyph that might arrive as
+   an emoji, no second request for an image. */
+.theme__icon {
+  width: 0.56rem;
+  height: 0.56rem;
+  border-radius: 50%;
+  flex: none;
+  transition: color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.theme__icon--sun {
+  color: light-dark(var(--celadon), var(--ash-dim));
+  background: currentColor;
+  box-shadow: 0 0 0 0.13rem color-mix(in oklab, currentColor 20%, transparent);
+}
+
+/* An offset inset shadow eats one side of the disc, leaving a crescent. */
+.theme__icon--moon {
+  color: light-dark(var(--ash-dim), var(--celadon));
+  box-shadow: inset -0.19rem -0.05rem 0 0 currentColor;
 }
 
 /* --- Hero ----------------------------------------------------------------- */
@@ -346,6 +485,24 @@ code {
   color: transparent;
 }
 
+/* The tagline sits between the headline and the prose, in mono so it reads as a
+   statement rather than a sentence. */
+.hero__tagline {
+  font-family: var(--font-mono);
+  font-size: clamp(0.86rem, 0.78rem + 0.4vw, 1.02rem);
+  letter-spacing: 0.02em;
+  margin-top: 1.5rem;
+  color: var(--ash);
+}
+
+.hero__tagline em {
+  font-style: normal;
+  background: var(--grad-glaze);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
 .hero__lede {
   max-width: var(--measure);
   margin-top: 1.6rem;
@@ -358,6 +515,12 @@ code {
   flex-wrap: wrap;
   gap: 0.75rem;
   margin-top: 2.2rem;
+}
+
+/* The byline under the buttons, naming the repository this site documents. */
+.hero .demo-note {
+  margin-top: 1.15rem;
+  max-width: var(--measure);
 }
 
 /* Firing schedule under the hero: cold clay in, vitrified ware out. */
@@ -560,12 +723,12 @@ code {
 .btn--solid {
   background: var(--grad-glaze);
   border-color: transparent;
-  color: #06120d;
+  color: var(--on-glaze);
   font-weight: 600;
 }
 
 .btn--solid:hover {
-  color: #06120d;
+  color: var(--on-glaze);
   filter: brightness(1.08);
 }
 
@@ -1165,7 +1328,7 @@ code {
 }
 
 .feedback__msg.error {
-  color: #e8836a;
+  color: var(--alarm);
 }
 
 /* --- Footer --------------------------------------------------------------- */
@@ -1214,6 +1377,7 @@ code {
 .rise:nth-child(4) { animation-delay: 0.26s; }
 .rise:nth-child(5) { animation-delay: 0.34s; }
 .rise:nth-child(6) { animation-delay: 0.42s; }
+.rise:nth-child(7) { animation-delay: 0.5s; }
 
 @keyframes rise {
   from {
@@ -1286,6 +1450,6 @@ code {
   z-index: 100;
   padding: 0.6rem 1rem;
   background: var(--celadon);
-  color: #06120d;
+  color: var(--on-glaze);
   border-radius: 3px;
 }
