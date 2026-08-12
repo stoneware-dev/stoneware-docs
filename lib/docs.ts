@@ -590,8 +590,12 @@ export default function Counter() {
           "The island renders to HTML with its initial state, so there is no flash of empty content.",
           "Its root element is tagged with a hydration marker.",
           "Its props are serialized into a non-executable JSON block.",
-          "One module script per distinct island is added before </body>.",
+          "One module script per distinct eagerly-hydrated island is added before </body>.",
         ],
+      },
+      {
+        kind: "p",
+        text: "That last line says eagerly for a reason: an island can be told to wait. See when islands hydrate for the client:visible, client:idle and client:media directives.",
       },
       {
         kind: "quote",
@@ -613,6 +617,82 @@ export default function Counter() {
         text: `import { signal } from "stoneware/signals";
 
 export const subscriberCount = signal(1284);`,
+      },
+    ],
+  },
+
+  {
+    slug: "hydration",
+    title: "When islands hydrate",
+    summary: "client:visible, client:idle and client:media — and what a page stops downloading.",
+    blocks: [
+      {
+        kind: "p",
+        text: "By default an island hydrates as soon as its chunk loads. A client:* directive defers that. It goes on the usage site rather than inside the island, so the same island can be eager on one page and lazy on another without being written twice.",
+      },
+      {
+        kind: "code",
+        label: "routes/index.tsx",
+        text: `<Chart />                                   {/* default: on load */}
+<Chart client:visible />                    {/* scrolled into view */}
+<Chart client:idle />                       {/* browser goes idle */}
+<Chart client:media="(min-width: 60rem)" /> {/* query matches */}`,
+      },
+
+      { kind: "h2", text: "What the page stops downloading" },
+      {
+        kind: "p",
+        text: "A deferred island emits no script tag at all. Its chunk URL travels inside the JSON payload instead, and the page loads a small scheduler that fetches the chunk when the trigger fires.",
+      },
+      {
+        kind: "figure",
+        label: "a page whose islands are all client:visible",
+        text: `  on load                          on scroll
+  ─────────────────────────        ─────────────────────────
+  scheduler        ~1 KB           runtime          ~3.2 KB
+                                   Chart chunk      ~1 KB
+  ─────────────────────────        ─────────────────────────
+  ~1 KB gzip                       fetched only if reached`,
+      },
+      {
+        kind: "p",
+        text: "The scheduler is deliberately kept clear of the DOM builder and signals. Importing either would drag the whole runtime in with it and there would be no saving left — so that boundary is enforced by a size budget in the test suite rather than by good intentions.",
+      },
+      {
+        kind: "quote",
+        text: "The chunk arrives through a same-origin dynamic import(), which script-src 'self' permits. No inline script, no nonce, and no relaxation of the default policy — the same policy this site runs under.",
+      },
+
+      { kind: "h2", text: "How each trigger behaves" },
+      {
+        kind: "list",
+        items: [
+          "client:visible starts hydrating 200px before the element reaches the viewport, so it is usually ready by the time it is on screen.",
+          "client:idle waits for requestIdleCallback, with a 2s cap so a busy page still hydrates.",
+          "client:media hydrates when the query matches — immediately if it already does, otherwise on the next change.",
+        ],
+      },
+      {
+        kind: "p",
+        text: "Every trigger degrades to hydrating immediately when the API behind it is missing. A browser without IntersectionObserver gets a working page slightly sooner than intended, never a dead button.",
+      },
+
+      { kind: "h2", text: "Things that are errors" },
+      {
+        kind: "list",
+        items: [
+          "Two directives on one usage. There is no sensible answer to client:idle client:visible, and inventing a precedence rule to memorize would be worse than saying so.",
+          "A directive on a plain element. Only islands hydrate, and rendering it as a stray attribute would look correct while never working.",
+          "client:media without a query, or an unknown directive. TypeScript catches both first; the runtime check covers JavaScript and spread props.",
+        ],
+      },
+      {
+        kind: "p",
+        text: "The directive is stripped before the island runs, so an island never sees client:visible among its props and needs no awareness that any of this exists.",
+      },
+      {
+        kind: "quote",
+        text: "A page with no deferred island is byte-for-byte what it was before the feature existed: no scheduler is loaded, and the payload carries no strategy field. Eager stays the default because it is the right one for a button above the fold.",
       },
     ],
   },
