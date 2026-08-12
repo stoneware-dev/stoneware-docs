@@ -826,7 +826,7 @@ bun server.ts        # serves`,
       { kind: "h2", text: "Vercel" },
       {
         kind: "p",
-        text: "Vercel runs Bun as a first-class function runtime, and its Bun preset detects a single Bun.serve() call in a root server.ts. The wrinkle is that it bundles the function, so the directories read at runtime have to be named explicitly.",
+        text: "Vercel runs Bun as a first-class function runtime. Its Bun framework preset detects a single Bun.serve() call in a root server.ts and routes every request through it, so no /api directory and no routing configuration are needed. The preset requires a bun.lock file to be present.",
       },
       {
         kind: "code",
@@ -835,26 +835,24 @@ bun server.ts        # serves`,
         text: `{
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "bunVersion": "1.x",
-  "buildCommand": "bun node_modules/stoneware/bin/stoneware.mjs build",
-  "functions": {
-    "server.ts": {
-      "includeFiles": "{routes,public,.stoneware}/**"
-    }
-  }
+  "buildCommand": "bun node_modules/stoneware/bin/stoneware.mjs build"
 }`,
       },
       {
         kind: "list",
         items: [
-          "includeFiles carries routes/, public/ and the build output into the function. Without it the function crashes on its first request.",
           "buildCommand invokes the CLI through Bun directly, which sidesteps shim and shebang resolution in the build image.",
           "Set STONEWARE_CSRF_SECRET as a project environment variable.",
-          "If the app lives in a subdirectory of a larger repo, set Root Directory to it — Vercel still clones the whole repository and only changes directory.",
+          "If the app lives in a subdirectory of a larger repo, set Root Directory to it — Vercel still clones the whole repository and only changes directory into it.",
         ],
       },
       {
         kind: "quote",
-        text: "A serverless filesystem is read-only outside /tmp. That is why the build manifest has to ship: if it is missing, the server falls back to rebuilding island bundles and the write fails in a way that looks unrelated to the cause.",
+        text: 'Do not add a functions block for the preset. Those patterns only match Serverless Functions inside an api/ directory, so the build fails with "The pattern server.ts doesn\'t match any Serverless Functions inside the api directory." There is no includeFiles equivalent for the framework preset.',
+      },
+      {
+        kind: "p",
+        text: "If the function starts but crashes, the likely cause is that routes/ or .stoneware/islands.json did not reach the runtime. A serverless filesystem is read-only outside /tmp, so a missing build manifest makes the server fall back to rebuilding island bundles, and that write fails in a way that looks unrelated to the cause. The fallback is the /api model — move the entry to api/server.ts and add rewrites, where functions.includeFiles does apply because the pattern then matches a real function.",
       },
 
       { kind: "h2", text: "When a serverless deploy crashes" },
