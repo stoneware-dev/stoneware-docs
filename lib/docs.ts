@@ -834,9 +834,14 @@ bun server.ts        # serves`,
         label: "vercel.json",
         text: `{
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "bun",
   "bunVersion": "1.x",
   "buildCommand": "bun node_modules/stoneware/bin/stoneware.mjs build"
 }`,
+      },
+      {
+        kind: "quote",
+        text: 'framework: "bun" is the line that matters. Left as "Other", Vercel treats the project as a static build: server.ts is never detected, no function is created, and every path returns 404: NOT_FOUND — even though the build log reports success. Setting it in vercel.json overrides Project Settings, so it is version-controlled rather than a dashboard click someone has to remember.',
       },
       {
         kind: "list",
