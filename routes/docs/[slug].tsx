@@ -2,7 +2,7 @@ import { csrfFieldName, csrfToken, seo } from "stoneware";
 import type { PageProps } from "stoneware";
 import { Layout } from "../../lib/Layout.tsx";
 import { Prose } from "../../lib/Prose.tsx";
-import { DOCS, getDoc, getNeighbors } from "../../lib/docs.ts";
+import { DOC_GROUPS, DOC_ORDER, getDoc, getNeighbors, pagesInGroup } from "../../lib/docs.ts";
 import { REPO_ISSUES_URL, SITE_URL, siteURL } from "../../lib/site.ts";
 import { themeFromRequest } from "../../lib/theme.ts";
 import Feedback from "../../islands/Feedback.tsx";
@@ -12,7 +12,7 @@ import Feedback from "../../islands/Feedback.tsx";
  * [params] cannot be enumerated on its own, so the module names them.
  */
 export function staticPaths() {
-  return DOCS.map((page) => ({ slug: page.slug }));
+  return DOC_ORDER.map((page) => ({ slug: page.slug }));
 }
 
 /**
@@ -125,21 +125,47 @@ export default function DocPage({ params, request }: PageProps) {
   );
 }
 
+/**
+ * The sidebar, in collapsible sections.
+ *
+ * `<details>`/`<summary>` rather than an island: this page ships no JavaScript
+ * at all, and a disclosure widget is not worth breaking that for. The browser
+ * gives us the toggle, Enter and Space, focus handling, and the "collapsed"
+ * announcement for free - all of it under `script-src 'self'` with nothing to
+ * relax.
+ *
+ * The section holding the current page is the one left open. That is decided
+ * on the server, per request, which is why it needs no state and no hydration:
+ * every navigation arrives with the right section already expanded.
+ */
 function DocsNav({ current }: { current: string }) {
   return (
     <nav class="docs__nav" aria-label="Documentation">
-      <ol>
-        {DOCS.map((page) => (
-          <li>
-            <a
-              href={`/docs/${page.slug}`}
-              aria-current={page.slug === current ? "page" : undefined}
-            >
-              {page.title}
-            </a>
-          </li>
-        ))}
-      </ol>
+      {DOC_GROUPS.map((group) => {
+        const pages = pagesInGroup(group);
+        const id = `docs-group-${group.label.toLowerCase().replace(/[^a-z]+/g, "-")}`;
+        const holdsCurrent = pages.some((page) => page.slug === current);
+
+        return (
+          <details class="docs__group" open={holdsCurrent}>
+            <summary class="docs__group-label">
+              <h2 id={id}>{group.label}</h2>
+            </summary>
+            <ol aria-labelledby={id}>
+              {pages.map((page) => (
+                <li>
+                  <a
+                    href={`/docs/${page.slug}`}
+                    aria-current={page.slug === current ? "page" : undefined}
+                  >
+                    {page.title}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </details>
+        );
+      })}
     </nav>
   );
 }

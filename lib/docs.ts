@@ -1824,6 +1824,90 @@ browser navigates to it       →  the _404 page, as before`,
   },
 ];
 
+/**
+ * Sidebar sections.
+ *
+ * Presentation only: every page keeps its slug, its URL and its content. This
+ * exists because eighteen entries in one flat list stopped being a reading
+ * order and became a search problem - "what's new" sat between "deploying" and
+ * "middleware", which is nobody's learning path.
+ *
+ * The order here is the order everywhere. `DOC_ORDER` below is derived from it
+ * and drives prev/next, so the sidebar and the footer links cannot disagree.
+ */
+export interface DocGroup {
+  label: string;
+  slugs: string[];
+}
+
+export const DOC_GROUPS: DocGroup[] = [
+  {
+    label: "Get started",
+    slugs: ["why", "quick-start", "project-structure", "how-it-works"],
+  },
+  {
+    label: "Core",
+    slugs: ["routing", "islands", "hydration", "head-and-images", "seo", "styling", "error-pages"],
+  },
+  {
+    label: "Server",
+    slugs: ["server-actions", "middleware"],
+  },
+  {
+    label: "Security",
+    slugs: ["security"],
+  },
+  {
+    label: "Build & deploy",
+    slugs: ["cli", "deploying"],
+  },
+  {
+    label: "Reference",
+    slugs: ["benchmark"],
+  },
+  {
+    label: "Releases",
+    slugs: ["whats-new"],
+  },
+];
+
+/**
+ * Every page, in sidebar order.
+ *
+ * Built from the groups rather than maintained beside them, and checked against
+ * DOCS on load: a page added without being grouped would otherwise vanish from
+ * the sidebar while still being reachable by URL, which is the kind of thing
+ * nobody notices for months.
+ */
+export const DOC_ORDER: DocPage[] = (() => {
+  const byslug = new Map(DOCS.map((page) => [page.slug, page]));
+  const ordered: DocPage[] = [];
+
+  for (const group of DOC_GROUPS) {
+    for (const slug of group.slugs) {
+      const page = byslug.get(slug);
+      if (!page) throw new Error(`DOC_GROUPS lists "${slug}", which is not a page in DOCS.`);
+      if (ordered.includes(page)) throw new Error(`DOC_GROUPS lists "${slug}" more than once.`);
+      ordered.push(page);
+    }
+  }
+
+  const ungrouped = DOCS.filter((page) => !ordered.includes(page));
+  if (ungrouped.length > 0) {
+    throw new Error(
+      `These pages are not in any DOC_GROUPS section and would not appear in the sidebar: ` +
+        ungrouped.map((page) => page.slug).join(", "),
+    );
+  }
+
+  return ordered;
+})();
+
+/** The pages of one group, in order. */
+export function pagesInGroup(group: DocGroup): DocPage[] {
+  return group.slugs.map((slug) => DOCS.find((page) => page.slug === slug)!);
+}
+
 export function getDoc(slug: string): DocPage | undefined {
   return DOCS.find((page) => page.slug === slug);
 }
@@ -1834,7 +1918,9 @@ export interface DocNeighbors {
 }
 
 export function getNeighbors(slug: string): DocNeighbors {
-  const index = DOCS.findIndex((page) => page.slug === slug);
+  // DOC_ORDER, not DOCS: the footer links have to walk the same path the
+  // sidebar shows, or "next" points somewhere the sidebar says is elsewhere.
+  const index = DOC_ORDER.findIndex((page) => page.slug === slug);
   if (index === -1) return {};
-  return { previous: DOCS[index - 1], next: DOCS[index + 1] };
+  return { previous: DOC_ORDER[index - 1], next: DOC_ORDER[index + 1] };
 }

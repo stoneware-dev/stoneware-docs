@@ -984,16 +984,107 @@ code {
   border-left-color: var(--celadon);
 }
 
+/* Sections in the sidebar.
+
+   The label sits outside the rail and the rail restarts beneath it, so the
+   grouping reads as a break in the line rather than as a new component. Same
+   mono/uppercase treatment as .eyebrow, one step dimmer than the links it
+   heads, because a label competing with its own contents is a label doing too
+   much. */
+.docs__group + .docs__group {
+  margin-top: 1.6rem;
+}
+
+/* The whole row is the control, so the target is the width of the sidebar
+   rather than the width of the words. */
+.docs__group-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+  cursor: pointer;
+  list-style: none;
+  color: var(--ash-dim);
+  transition: color 0.18s ease;
+}
+
+/* Both are needed: WebKit uses its own pseudo-element for the triangle and
+   ignores `list-style` on the summary. */
+.docs__group-label::-webkit-details-marker {
+  display: none;
+}
+
+.docs__group-label h2 {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: inherit;
+}
+
+/* A chevron drawn from a rotated square: one element, no asset, and it takes
+   currentColor so it dims and brightens with the label it belongs to. */
+.docs__group-label::after {
+  content: "";
+  width: 0.32rem;
+  height: 0.32rem;
+  margin-left: auto;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: translateY(-1px) rotate(-45deg);
+  transition: transform 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.docs__group[open] > .docs__group-label::after {
+  transform: translateY(1px) rotate(45deg);
+}
+
+.docs__group-label:hover {
+  color: var(--chalk);
+}
+
+/* Keyboard focus has to stay visible - this is the one control here that is
+   not a link, so it cannot inherit the link focus treatment. */
+.docs__group-label:focus-visible {
+  outline: 1px solid var(--celadon);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* The open section's label is the heading of where you are, so it reads at
+   full strength while the collapsed ones recede. */
+.docs__group[open] > .docs__group-label {
+  color: var(--chalk);
+}
+
+.docs__group[open] > ol {
+  margin-top: 0.35rem;
+}
+
 /* Must come after the .docs__nav rules above: a media query adds no
    specificity, so an earlier override would simply lose to them.
    Stacked, the nav sits above the article rather than beside it — left sticky,
    it would pin to the top and let the article scroll underneath. */
+@media (prefers-reduced-motion: reduce) {
+  .docs__group-label::after {
+    transition: none;
+  }
+}
+
 @media (max-width: 56rem) {
   .docs__nav {
     position: static;
     padding-bottom: 1.75rem;
     margin-bottom: 2rem;
     border-bottom: 1px solid var(--line-soft);
+  }
+
+  /* Stacked, the sections run vertically with nothing beside them, so they
+     need the separation the sticky column got from the article next to it. */
+  .docs__group + .docs__group {
+    margin-top: 1.9rem;
   }
 }
 

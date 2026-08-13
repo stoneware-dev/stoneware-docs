@@ -1,6 +1,6 @@
 import type { PageProps } from "stoneware";
 import { Layout } from "../../lib/Layout.tsx";
-import { DOCS } from "../../lib/docs.ts";
+import { DOCS, DOC_ORDER } from "../../lib/docs.ts";
 import { REPO_SLUG, REPO_URL } from "../../lib/site.ts";
 import { themeFromRequest } from "../../lib/theme.ts";
 
@@ -28,7 +28,7 @@ export default function DocsIndex({ request }: PageProps) {
 
         <section class="section">
           <div class="card-grid">
-            {DOCS.map((page) => (
+            {DOC_ORDER.map((page) => (
               <a class="card" href={`/docs/${page.slug}`}>
                 <h3>{page.title}</h3>
                 <p>{page.summary}</p>
