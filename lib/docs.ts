@@ -1393,6 +1393,68 @@ for (const path of ["routes", ".stoneware/islands.json"]) {
       },
     ],
   },
+
+  {
+    slug: "whats-new",
+    title: "What's new in 0.1.2",
+    summary: "Lazy hydration, static export, error pages, SEO and images — and two deploy fixes.",
+    blocks: [
+      {
+        kind: "p",
+        text: "Published to npm on 13 August 2026. Despite the patch number this is a feature release, so anyone on ^0.1.1 picks all of it up automatically.",
+      },
+      {
+        kind: "code",
+        language: "sh",
+        label: "terminal",
+        text: `bun update stoneware      # existing project
+bunx create-stoneware my-site   # new one`,
+      },
+
+      { kind: "h2", text: "Added" },
+      {
+        kind: "list",
+        items: [
+          "Lazy island hydration — client:visible, client:idle and client:media on the usage site. A deferred island emits no script tag; a ~1 KB scheduler fetches its chunk when the trigger fires. See when islands hydrate.",
+          "Static export — stoneware export prerenders every page through the ordinary request pipeline, so what lands on disk is byte-identical to a served response. It deploys to hosts that cannot run Bun at all. See CLI and builds.",
+          "Custom error pages — routes/_404.tsx and routes/_500.tsx, rendered through your own layout. See error pages.",
+          "Co-located CSS — a .css beside any file under routes/, islands/ or lib/ is collected, hashed and linked for you. See styling.",
+          "A head export, for per-page metadata without owning the whole document. See head and images.",
+          "<Image> — reserved space, lazy loading, async decoding, and a preload for the one image that matters. No dependency and no resize pipeline.",
+          "seo() — title, description, canonical, Open Graph, X cards, robots, hreflang and JSON-LD from one object, with every field optional. See SEO and sharing.",
+          "Browser diagnostics in development — a failed rebuild now shows an overlay with file, line and source rather than only a line in the terminal.",
+        ],
+      },
+
+      { kind: "h2", text: "Fixed" },
+      {
+        kind: "list",
+        items: [
+          "Production no longer rebuilds island chunks at boot. It reads the build manifest, or fails with a message naming the cause — a serverless deploy previously crashed opaquely against a read-only filesystem.",
+          "The server binds 0.0.0.0 in production, so platform health checks on Render, Railway and Fly reach it.",
+          "public/ assets carry ETag and Last-Modified and revalidate, instead of going stale for an hour after a deploy.",
+          "HTML responses carry an ETag and answer 304. A page that renders a CSRF token is private, no-store and never reaches a shared cache. See caching.",
+        ],
+      },
+
+      { kind: "h2", text: "Changed" },
+      {
+        kind: "p",
+        text: "Two behaviour changes worth knowing before you upgrade.",
+      },
+      {
+        kind: "list",
+        items: [
+          "A route file whose name starts with _ is no longer servable. /_404 now returns the 404 page rather than that page with a 200 — so a routes/_something.tsx you were serving deliberately will stop.",
+          "The island hydration payload changed shape. Internal, and server and client ship together, but a version mismatch now logs a named error instead of leaving every island on the page silently inert.",
+        ],
+      },
+      {
+        kind: "quote",
+        text: "This site runs on the published package rather than a local checkout, so everything documented here is behaviour you can install — not behaviour that only exists in the repository.",
+      },
+    ],
+  },
 ];
 
 export function getDoc(slug: string): DocPage | undefined {

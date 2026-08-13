@@ -1,4 +1,4 @@
-import { csrfFieldName, csrfToken } from "stoneware";
+import { csrfFieldName, csrfToken, seo } from "stoneware";
 import type { PageProps } from "stoneware";
 import { Layout } from "../../lib/Layout.tsx";
 import { Prose } from "../../lib/Prose.tsx";
@@ -13,6 +13,46 @@ import Feedback from "../../islands/Feedback.tsx";
  */
 export function staticPaths() {
   return DOCS.map((page) => ({ slug: page.slug }));
+}
+
+/**
+ * Social and search metadata for this page.
+ *
+ * Title and description stay in Layout, which owns the document; seo() adds
+ * what a shared link needs and Layout has no business knowing about. The
+ * canonical URL is built from the request rather than a hardcoded domain, so
+ * the site is correct wherever it is served from.
+ */
+export function head({ params, url }: PageProps) {
+  const page = getDoc(params.slug ?? "");
+
+  // An unknown slug still matches this route, so it renders a "no such page"
+  // body with a 200 - a soft 404. Nothing here should be indexed or treated as
+  // canonical, or the miss ends up in search results.
+  if (!page) return seo({ robots: { index: false, follow: true } });
+
+  const canonical = `${url.origin}/docs/${page.slug}`;
+
+  return seo({
+    canonical,
+    openGraph: {
+      title: `${page.title} — Stoneware`,
+      description: page.summary,
+      siteName: "Stoneware",
+      type: "article",
+      image: "/mark.svg",
+    },
+    x: { card: "summary" },
+    robots: { index: true, follow: true, maxImagePreview: "large" },
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      headline: page.title,
+      description: page.summary,
+      url: canonical,
+      isPartOf: { "@type": "WebSite", name: "Stoneware", url: url.origin },
+    },
+  });
 }
 
 export default function DocPage({ params, request }: PageProps) {

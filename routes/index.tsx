@@ -1,3 +1,4 @@
+import { seo } from "stoneware";
 import type { PageProps } from "stoneware";
 import { Layout } from "../lib/Layout.tsx";
 import { CodeBlock } from "../lib/highlight.tsx";
@@ -11,6 +12,31 @@ import LiveCounter from "../islands/LiveCounter.tsx";
  * Measured on this site's own production build (gzipped), not estimated.
  * Reproduce with: stoneware build --root example, then gzip .stoneware/static/*.js
  */
+export function head({ url }: PageProps) {
+  return seo({
+    canonical: url.origin + "/",
+    openGraph: {
+      title: "Stoneware — shape your web application at build/server time",
+      description:
+        "A Bun-native, server-first web framework where HTML is the default and JavaScript is opt-in.",
+      siteName: "Stoneware",
+      image: "/mark.svg",
+    },
+    x: { card: "summary" },
+    robots: { index: true, follow: true, maxImagePreview: "large" },
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: "Stoneware",
+      applicationCategory: "DeveloperApplication",
+      operatingSystem: "Cross-platform",
+      softwareVersion: "0.1.2",
+      url: url.origin,
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    },
+  });
+}
+
 const STATS = [
   { label: "Client runtime", value: "3.2 KB" },
   { label: "One island", value: "0.2 KB" },
@@ -90,7 +116,7 @@ export default function Home({ request }: PageProps) {
       theme={themeFromRequest(request)}
     >
       <section class="shell hero">
-        <p class="eyebrow eyebrow--glaze rise">Bun-native · server-first · v0.1</p>
+        <p class="eyebrow eyebrow--glaze rise">Bun-native · server-first · v0.1.2</p>
         <h1 class="hero__title rise">
           Shape your web application at <em>build/server time</em>
         </h1>
