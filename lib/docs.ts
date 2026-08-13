@@ -954,6 +954,28 @@ export default function NotFound({ url }: ErrorPageProps) {
         text: "That is decided by the framework rather than left to each error page to handle responsibly. An exception message routinely carries a file path, a query, or a connection string, and the page that renders it is the one page guaranteed to be shown when something has already gone wrong.",
       },
 
+      { kind: "h2", text: "When the route matched but the content does not exist" },
+      {
+        kind: "p",
+        text: "_404.tsx only fires when nothing matched. A [slug] route matches any slug, so it reaches your template and then discovers there is no such post. Rendering not-found markup there would serve it with a 200 — a soft 404, which search engines index and which tells a client the request succeeded.",
+      },
+      {
+        kind: "code",
+        label: "routes/blog/[slug].tsx",
+        text: `import { notFound } from "stoneware";
+
+export default function Post({ params }: PageProps) {
+  const post = getPost(params.slug);
+  if (!post) notFound();
+
+  return <article>{post.title}</article>;
+}`,
+      },
+      {
+        kind: "p",
+        text: "It renders your _404 page with a 404 status. Because it throws rather than returns, it works from a helper several calls deep without every function in between having to pass it back up — and it returns never, so TypeScript narrows post as present afterwards with no non-null assertion.",
+      },
+
       { kind: "h2", text: "An underscore means it is not a page" },
       {
         kind: "p",
@@ -1160,6 +1182,11 @@ stoneware export  # prerender every page to static HTML`,
         text: "One process serves pages, built island chunks, and the live-reload socket. There is no second dev server and no proxy. Editing a file under routes/, islands/ or lib/ rebuilds and reloads the browser.",
       },
 
+      {
+        kind: "p",
+        text: "If the port is already taken, dev moves to the next free one and says so — a busy port in development is nearly always your own previous run. Production does the opposite and fails loudly, because a platform routes traffic to the port it assigned and quietly binding a different one produces a service that looks healthy in its own logs while every request from outside fails.",
+      },
+
       { kind: "h2", text: "When something breaks" },
       {
         kind: "p",
@@ -1283,6 +1310,31 @@ Bun.serve({
         text: `bun install
 stoneware build      # writes .stoneware/
 bun server.ts        # serves`,
+      },
+
+      { kind: "h2", text: "Behind a proxy that terminates TLS" },
+      {
+        kind: "p",
+        text: "Render, Railway, Fly, Heroku, Vercel and nginx all terminate TLS and forward a plain HTTP request. Without being told, the app sees http:// on a site served over https://, and every absolute URL it builds — canonical links, og:image, sitemap entries — points at the insecure origin.",
+      },
+      {
+        kind: "code",
+        label: "stoneware.config.ts",
+        text: `export default defineConfig({
+  trustProxy: "proto",   // or true, or STONEWARE_TRUST_PROXY in the environment
+});`,
+      },
+      {
+        kind: "list",
+        items: [
+          "\"proto\" trusts X-Forwarded-Proto only. Safe on any host, and enough to fix http/https confusion, which is the case that actually bites.",
+          "true also trusts X-Forwarded-Host. A forged host poisons every absolute URL the app emits, so use it only when something you control sets that header.",
+          "Off by default, because these headers are trivially forged by anyone who can reach the app directly.",
+        ],
+      },
+      {
+        kind: "quote",
+        text: "This is a real bug this site shipped: every page declared <link rel=\"canonical\" href=\"http://...\"> while being served over https, which tells Google the insecure copy is the authoritative one.",
       },
 
       { kind: "h2", text: "Which platforms work" },
@@ -1421,62 +1473,221 @@ for (const path of ["routes", ".stoneware/islands.json"]) {
 
   {
     slug: "whats-new",
-    title: "What's new in 0.1.2",
-    summary: "Lazy hydration, static export, error pages, SEO and images — and two deploy fixes.",
+    title: "What's new",
+    summary: "0.1.3 and 0.1.2 — what changed, what it replaces, and why.",
     blocks: [
       {
-        kind: "p",
-        text: "Published to npm on 13 August 2026. Despite the patch number this is a feature release, so anyone on ^0.1.1 picks all of it up automatically.",
+        kind: "h2", text: "0.1.3",
       },
       {
-        kind: "code",
-        language: "sh",
-        label: "terminal",
-        text: `bun update stoneware      # existing project
-bunx create-stoneware my-site   # new one`,
+        kind: "p",
+        text: "Three bugs found by running this site in production, and three features found by wanting to build something real with it. Each entry below says what you had to do before, because that is the only honest way to judge whether an addition earns its place.",
       },
 
-      { kind: "h2", text: "Added" },
+      { kind: "h2", text: "Middleware" },
+      {
+        kind: "figure",
+        label: "an auth check across twelve routes",
+        text: `  before                          now
+  ──────────────────────────      ──────────────────────────
+  paste the check into every      routes/_middleware.ts
+  route, and into every route     runs on every request
+  added afterwards`,
+      },
+      {
+        kind: "p",
+        text: "There was no way to run code across routes at all — no auth guard, no redirect rule, no request logging. That is the gap you hit within a day of building anything real, and copy-paste was the only answer. See middleware and APIs.",
+      },
+
+      { kind: "h2", text: "JSON errors and CORS" },
+      {
+        kind: "figure",
+        label: "what a fetch() got back from a failing route",
+        text: `  before                          now
+  ──────────────────────────      ──────────────────────────
+  <!DOCTYPE html>...              { "error": "Not Found",
+  the full error page               "status": 404 }
+  and nothing parseable`,
+      },
+      {
+        kind: "p",
+        text: "API routes existed and worked, but everything around them was missing. Errors now negotiate on Accept, and cross-origin access is configurable — off by default, since an API only your own pages call never needed it.",
+      },
+
+      { kind: "h2", text: "notFound()" },
+      {
+        kind: "figure",
+        label: "a [slug] route asked for something that does not exist",
+        text: `  before                          now
+  ──────────────────────────      ──────────────────────────
+  render "no such page"           notFound()
+  and serve it with 200           renders _404 with a 404
+  → a soft 404 Google indexes`,
+      },
+      {
+        kind: "p",
+        text: "routes/_404.tsx only fires when nothing matched. A [slug] route matches any slug, so it could only ever render not-found markup with a success status. This site had exactly that bug. See error pages.",
+      },
+
+      { kind: "h2", text: "Correct URLs behind a proxy" },
+      {
+        kind: "figure",
+        label: "a site served over https by Render",
+        text: `  before                          now
+  ──────────────────────────      ──────────────────────────
+  <link rel="canonical"           trustProxy: "proto"
+    href="http://...">            → https:// everywhere
+  every page, telling Google
+  the insecure URL is real`,
+      },
+      {
+        kind: "p",
+        text: "Every platform that terminates TLS forwards a plain HTTP request, so url.origin reported http:// on an https:// site. Off by default because those headers are forgeable; \"proto\" trusts only the scheme, which is safe anywhere and fixes the common case. See deploying.",
+      },
+
+      { kind: "h2", text: "Smaller things" },
       {
         kind: "list",
         items: [
-          "Lazy island hydration — client:visible, client:idle and client:media on the usage site. A deferred island emits no script tag; a ~1 KB scheduler fetches its chunk when the trigger fires. See when islands hydrate.",
-          "Static export — stoneware export prerenders every page through the ordinary request pipeline, so what lands on disk is byte-identical to a served response. It deploys to hosts that cannot run Bun at all. See CLI and builds.",
-          "Custom error pages — routes/_404.tsx and routes/_500.tsx, rendered through your own layout. See error pages.",
-          "Co-located CSS — a .css beside any file under routes/, islands/ or lib/ is collected, hashed and linked for you. See styling.",
-          "A head export, for per-page metadata without owning the whole document. See head and images.",
-          "<Image> — reserved space, lazy loading, async decoding, and a preload for the one image that matters. No dependency and no resize pipeline.",
-          "seo() — title, description, canonical, Open Graph, X cards, robots, hreflang and JSON-LD from one object, with every field optional. See SEO and sharing.",
-          "Browser diagnostics in development — a failed rebuild now shows an overlay with file, line and source rather than only a line in the terminal.",
+          "stoneware dev walks to the next free port instead of refusing to start. Production still fails loudly, because a platform routes traffic to the port it assigned.",
+          "stoneware export writes non-HTML routes at their literal path. A sitemap.xml route used to land at sitemap.xml/index.html, where no crawler would find it.",
+          "New projects ship robots.txt, sitemap.xml, a favicon and the Stoneware mark, with SITE_URL wired through so absolute URLs are right from the first deploy.",
         ],
       },
 
-      { kind: "h2", text: "Fixed" },
-      {
-        kind: "list",
-        items: [
-          "Production no longer rebuilds island chunks at boot. It reads the build manifest, or fails with a message naming the cause — a serverless deploy previously crashed opaquely against a read-only filesystem.",
-          "The server binds 0.0.0.0 in production, so platform health checks on Render, Railway and Fly reach it.",
-          "public/ assets carry ETag and Last-Modified and revalidate, instead of going stale for an hour after a deploy.",
-          "HTML responses carry an ETag and answer 304. A page that renders a CSRF token is private, no-store and never reaches a shared cache. See caching.",
-        ],
-      },
-
-      { kind: "h2", text: "Changed" },
+      { kind: "h2", text: "0.1.2" },
       {
         kind: "p",
-        text: "Two behaviour changes worth knowing before you upgrade.",
+        text: "Published 13 August 2026. Lazy hydration (client:visible, client:idle, client:media), static export, custom error pages, co-located CSS, a head export, <Image>, seo(), and browser diagnostics in development.",
       },
       {
         kind: "list",
         items: [
-          "A route file whose name starts with _ is no longer servable. /_404 now returns the 404 page rather than that page with a 200 — so a routes/_something.tsx you were serving deliberately will stop.",
-          "The island hydration payload changed shape. Internal, and server and client ship together, but a version mismatch now logs a named error instead of leaving every island on the page silently inert.",
+          "Production stopped rebuilding island chunks at boot, which was crashing serverless deploys against a read-only filesystem.",
+          "The server binds 0.0.0.0 in production, so platform health checks reach it.",
+          "public/ assets revalidate instead of going stale for an hour after a deploy, and HTML responses answer 304.",
         ],
       },
       {
         kind: "quote",
         text: "This site runs on the published package rather than a local checkout, so everything documented here is behaviour you can install — not behaviour that only exists in the repository.",
+      },
+    ],
+  },
+
+  {
+    slug: "middleware",
+    title: "Middleware and APIs",
+    summary: "One file that runs on every request, and what changed for API routes.",
+    blocks: [
+      {
+        kind: "p",
+        text: "Add routes/_middleware.ts and it runs on every request. Return a Response to answer there and stop; return nothing to carry on to the route.",
+      },
+      {
+        kind: "code",
+        label: "routes/_middleware.ts",
+        text: `import type { MiddlewareContext } from "stoneware";
+
+export default function middleware({ request, url, locals }: MiddlewareContext) {
+  if (url.pathname.startsWith("/admin") && !isAuthed(request)) {
+    return new Response(null, { status: 302, headers: { Location: "/login" } });
+  }
+
+  locals.user = getUser(request);
+}`,
+      },
+      {
+        kind: "p",
+        text: "Whatever middleware puts on locals reaches the page or API route that handles the request. It is typed by declaration merging, so the framework never has to guess your shape.",
+      },
+      {
+        kind: "code",
+        label: "anywhere in your project",
+        text: `declare module "stoneware" {
+  interface Locals {
+    user?: { id: string; name: string };
+  }
+}`,
+      },
+
+      { kind: "h2", text: "Where it runs, and why that is the whole design" },
+      {
+        kind: "figure",
+        label: "the request pipeline",
+        text: `  static assets
+       │
+       ▼
+  CSRF verification      ← always first
+       │
+       ▼
+  _middleware.ts         ← after verification, before matching
+       │
+       ▼
+  route match  ──► 404
+       │
+       ▼
+  page or API handler
+       │
+       ▼
+  security headers       ← always last, single exit`,
+      },
+      {
+        kind: "p",
+        text: "After CSRF, never before. Middleware is ordinary project code, and code that ran ahead of verification could act on a request that was about to be rejected — which is how a framework acquires a documented way around its own protection.",
+      },
+      {
+        kind: "p",
+        text: "Before route matching, so it also sees requests that are about to 404. A redirect rule for a page you deleted is worth nothing if it only fires for paths that still resolve.",
+      },
+      {
+        kind: "quote",
+        text: "There is deliberately no next() and no way to wrap the finished response. Security headers are applied at one exit; middleware that could rewrite the response could remove them.",
+      },
+
+      { kind: "h2", text: "JSON errors" },
+      {
+        kind: "p",
+        text: "An API client that hits a failing route used to receive the HTML error page — a fetch() would resolve with <!DOCTYPE html> in the body and nothing usable in it. Errors are now negotiated.",
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "same route, two callers",
+        text: `fetch("/api/thing")            →  { "error": "Not Found", "status": 404 }
+browser navigates to it       →  the _404 page, as before`,
+      },
+      {
+        kind: "p",
+        text: "Decided from the Accept header rather than from the path, because a route under routes/api/ that someone navigates to in a browser is still a navigation. In development the response carries detail and stack; production sends neither.",
+      },
+
+      { kind: "h2", text: "CORS" },
+      {
+        kind: "p",
+        text: "Off unless you configure it. An API that only your own pages call never needed it, and enabling it by default would quietly make every internal endpoint callable from anywhere.",
+      },
+      {
+        kind: "code",
+        label: "stoneware.config.ts",
+        text: `export default defineConfig({
+  cors: {
+    origin: ["https://app.example.com"],
+    credentials: true,
+  },
+});`,
+      },
+      {
+        kind: "list",
+        items: [
+          "An allowed origin is echoed back rather than answered with *, and the response gets Vary: Origin — without it a shared cache can hand one origin's response to another.",
+          "Preflights are answered before CSRF, because a browser sends OPTIONS with no body and no token by design and will not send the real request until it succeeds.",
+          "origin: \"*\" together with credentials: true throws at startup. Browsers reject that pairing outright, so failing at boot names the problem instead of leaving an unexplained console error.",
+        ],
+      },
+      {
+        kind: "quote",
+        text: "A cross-origin POST still needs its CSRF token. CORS decides who may read a response; it does not decide who may act. That is the assumption most often got wrong, so it is asserted by a test rather than left to a sentence in a document.",
       },
     ],
   },
