@@ -704,7 +704,7 @@ export const subscriberCount = signal(1284);`,
     blocks: [
       {
         kind: "p",
-        text: "A page can contribute to <head> without owning the whole document. Export head alongside the default export; it receives the same props and runs in the same render context, so it can await data and call the same helpers.",
+        text: "A page can contribute to <head> without owning the whole document. Export head alongside the default export; it receives the same props and runs in the same render context, so it can await data and call the same helpers. For metadata specifically, seo() writes these tags for you — see SEO and sharing.",
       },
       {
         kind: "code",
@@ -778,6 +778,115 @@ export const subscriberCount = signal(1284);`,
       {
         kind: "p",
         text: "Bun ships no image codec, so re-encoding would mean a native dependency: a platform-specific binary and roughly thirty times the install size, for a framework whose entire dependency list is one 4 kB package. <Image> is correct markup, not a pipeline — bring your own, or ship the files you have.",
+      },
+    ],
+  },
+
+  {
+    slug: "seo",
+    title: "SEO and sharing",
+    summary: "One seo() call for search engines, every social network, and rich results.",
+    blocks: [
+      {
+        kind: "p",
+        text: "Metadata is a lot of tags to remember and easy to get subtly wrong. seo() takes one object and emits only what you filled in — every field is optional, and an omitted field produces no tag rather than an empty one.",
+      },
+      {
+        kind: "code",
+        label: "routes/quiz/java.tsx",
+        text: `export function head() {
+  return seo({
+    title: "Java Quiz",
+    description: "Practice Java questions online.",
+    canonical: "https://example.com/quiz/java",
+  });
+}`,
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "the whole output",
+        text: `<title>Java Quiz</title>
+<meta name="description" content="Practice Java questions online.">
+<link rel="canonical" href="https://example.com/quiz/java">`,
+      },
+      {
+        kind: "p",
+        text: "Three fields in, three tags out. It is a convenience over writing them yourself, never a gate in front of them — the result is an ordinary fragment, so hand-written tags sit beside it in the same head.",
+      },
+
+      { kind: "h2", text: "There are only three audiences" },
+      {
+        kind: "p",
+        text: "The list of networks is long; the list of protocols is not. Knowing which is which is most of the work.",
+      },
+      {
+        kind: "figure",
+        label: "who reads what",
+        text: `  Open Graph        Facebook, Instagram, LinkedIn, WhatsApp,
+                    Slack, Discord, Telegram, Signal, Pinterest,
+                    iMessage, Teams
+                    -> openGraph: { ... }
+
+  twitter:*         X   (renamed the company, not the markup)
+                    -> x: { ... }
+
+  Google            title, description, canonical, robots
+                    + schema.org for rich results
+                    -> jsonLd: { ... }`,
+      },
+      {
+        kind: "quote",
+        text: "There is no instagram or linkedIn option because there would be nothing to put in one. Both read Open Graph and neither defines tags of its own — Instagram has no link-preview protocol at all.",
+      },
+
+      { kind: "h2", text: "The fuller shape" },
+      {
+        kind: "code",
+        label: "everything is optional",
+        text: `seo({
+  title: "Java Quiz",
+  description: "Practice Java questions online.",
+  canonical: "https://example.com/quiz/java",
+
+  openGraph: {
+    image: "/images/java-quiz.png",   // made absolute for you
+    imageWidth: 1200,
+    imageHeight: 630,
+    siteName: "Example",
+    type: "article",
+    article: { publishedTime: "2026-08-13", authors: [".../ada"] },
+  },
+
+  x: { card: "summary_large_image", site: "@example" },
+
+  robots: { index: true, follow: true, maxImagePreview: "large" },
+
+  alternates: [{ hreflang: "fr", href: "https://example.com/fr/quiz" }],
+
+  jsonLd: { "@context": "https://schema.org", "@type": "Quiz", name: "Java Quiz" },
+})`,
+      },
+
+      { kind: "h2", text: "Four things it does for you" },
+      {
+        kind: "list",
+        items: [
+          "Relative image paths become absolute, against canonical or the current origin. A relative og:image is dropped by most crawlers, and the failure is invisible until someone shares the link.",
+          "Open Graph tags use property, not name. Writing name=\"og:title\" is the most common mistake in hand-written metadata and it silently does nothing.",
+          "og:title, og:description, twitter:title and the rest fall back to the top-level values, so the common case is written once rather than three times.",
+          "The card type defaults to summary_large_image when there is an image and summary when there is not — a large-image card with no image renders as a bare link.",
+        ],
+      },
+
+      { kind: "h2", text: "Structured data" },
+      {
+        kind: "p",
+        text: "jsonLd is the lever for Google rich results — star ratings, breadcrumbs, FAQ accordions, recipe cards. None of the meta tags above can produce them; only schema.org can.",
+      },
+      {
+        kind: "quote",
+        text: "It is serialized into a application/ld+json block, which browsers parse as data and never execute — the same mechanism the island payload uses, and the reason it needs no CSP exception. The serializer escapes <, > and the line separators, so a value cannot close the element and inject markup.",
       },
     ],
   },
