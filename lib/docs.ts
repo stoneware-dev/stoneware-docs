@@ -698,6 +698,91 @@ export const subscriberCount = signal(1284);`,
   },
 
   {
+    slug: "head-and-images",
+    title: "Head and images",
+    summary: "Per-page metadata, and an <Image> that fixes layout shift without a build pipeline.",
+    blocks: [
+      {
+        kind: "p",
+        text: "A page can contribute to <head> without owning the whole document. Export head alongside the default export; it receives the same props and runs in the same render context, so it can await data and call the same helpers.",
+      },
+      {
+        kind: "code",
+        label: "routes/blog/[slug].tsx",
+        text: `export function head({ params }: PageProps) {
+  const post = getPost(params.slug);
+  return (
+    <>
+      <title>{post.title}</title>
+      <meta name="description" content={post.summary} />
+      <link rel="canonical" href={\`https://example.com/blog/\${params.slug}\`} />
+    </>
+  );
+}`,
+      },
+      {
+        kind: "quote",
+        text: "A <title> here replaces the default rather than joining it. Two titles in one document is never what was meant, so the framework picks yours instead of emitting both.",
+      },
+
+      { kind: "h2", text: "Images" },
+      {
+        kind: "p",
+        text: "<Image> writes the markup that hand-rolled img tags usually get wrong. Nothing to install, and nothing to configure.",
+      },
+      {
+        kind: "code",
+        label: "in a page",
+        text: `<Image src="/hero.jpg" width={1200} height={600} alt="Stoneware" priority />
+<Image src="/feature.jpg" width={800} height={500} alt="Feature" />`,
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "what is rendered",
+        text: `<img src="/hero.jpg" width="1200" height="600" alt="Stoneware"
+     fetchpriority="high" decoding="async">
+
+<img src="/feature.jpg" width="800" height="500" alt="Feature"
+     loading="lazy" decoding="async">`,
+      },
+      {
+        kind: "p",
+        text: "priority also puts a <link rel=\"preload\" as=\"image\"> in the head — with imagesrcset and imagesizes when you pass srcset and sizes, so the preloader picks the same candidate the img will rather than racing it to a different file.",
+      },
+      {
+        kind: "quote",
+        text: "That tag is written in the body but belongs in the head, which the document assembler passed long before. It travels backwards through the render context — the same mechanism csrfToken() uses to reach the response layer.",
+      },
+
+      { kind: "h2", text: "Three things that are errors" },
+      {
+        kind: "list",
+        items: [
+          "A missing alt. alt=\"\" is a real answer — it marks the image decorative — but it has to be deliberate rather than forgotten.",
+          "A missing or zero width/height. The intrinsic ratio reserves space before the bytes arrive; without it the page shifts when they do. CSS can still size the element however it likes.",
+          "sizes without srcset, which does nothing at all.",
+        ],
+      },
+
+      { kind: "h2", text: "What it deliberately does not do" },
+      {
+        kind: "figure",
+        label: "the line, and why it is there",
+        text: `  width / height            yes      alt validation        yes
+  loading="lazy"            yes      decoding="async"      yes
+  fetchpriority + preload   yes      srcset / sizes        yes
+  ─────────────────────────────────────────────────────────────
+  resize   WebP   AVIF   compression        no — needs a codec`,
+      },
+      {
+        kind: "p",
+        text: "Bun ships no image codec, so re-encoding would mean a native dependency: a platform-specific binary and roughly thirty times the install size, for a framework whose entire dependency list is one 4 kB package. <Image> is correct markup, not a pipeline — bring your own, or ship the files you have.",
+      },
+    ],
+  },
+
+  {
     slug: "error-pages",
     title: "Error pages",
     summary: "Custom 404 and 500 pages, and the three properties that hold whether or not you write them.",
@@ -939,6 +1024,36 @@ stoneware export  # prerender every page to static HTML`,
       {
         kind: "p",
         text: "One process serves pages, built island chunks, and the live-reload socket. There is no second dev server and no proxy. Editing a file under routes/, islands/ or lib/ rebuilds and reloads the browser.",
+      },
+
+      { kind: "h2", text: "When something breaks" },
+      {
+        kind: "p",
+        text: "A failed rebuild appears in the browser, not only in the terminal. Without that, a build error leaves the page serving stale output with nothing to indicate it — and the only notice is a line in a window you may not be looking at.",
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "the overlay",
+        text: `Build failed
+
+islands/Counter.tsx:3:10
+  Expected "}" but found "null"
+
+    return null;
+            ^`,
+      },
+      {
+        kind: "p",
+        text: "It clears on the next successful build. A thrown route gets the same treatment on the server side: the built-in 500 page renders the stack in development, so the thing you need is in front of you. Production shows neither the message nor the stack.",
+      },
+      {
+        kind: "quote",
+        text: "Both respect the default CSP. The overlay styles itself through the CSSOM, which the policy does not govern, and the error page is deliberately unstyled — relaxing style-src to prettify an error would mean developing against a policy production does not use.",
+      },
+      {
+        kind: "p",
+        text: "Bun.build rejects with an AggregateError whose own message is the unhelpful string \"Bundle failed\"; everything useful — file, line, column, source text — is on the messages inside it. The dev server unpacks that rather than forwarding the summary.",
       },
       { kind: "h2", text: "Production" },
       {
