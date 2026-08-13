@@ -724,6 +724,31 @@ export const subscriberCount = signal(1284);`,
         kind: "quote",
         text: "A <title> here replaces the default rather than joining it. Two titles in one document is never what was meant, so the framework picks yours instead of emitting both.",
       },
+      {
+        kind: "list",
+        items: [
+          "It receives the same props as the page — params, request and url — so a title can come from the same slug the page rendered.",
+          "It may be async. It runs inside the page's render context, so it can await data and call the same helpers the page can.",
+          "Return null and nothing is added. There is no requirement to export it, and no penalty for exporting one that sometimes declines.",
+          "It works whether or not the page owns its document. A page returning a bare fragment gets the framework's shell; one returning a whole <html> has the markup injected before its own </head>.",
+        ],
+      },
+      {
+        kind: "p",
+        text: "One ordering detail worth knowing: head runs after the body, not before it. That is what lets a priority <Image> buried deep in the page contribute a preload that still lands in <head> — by the time the document is assembled, the body has already been rendered and everything it asked for is known.",
+      },
+      {
+        kind: "figure",
+        label: "the order a page is assembled in",
+        text: `  1. body renders          <Image priority> registers a preload
+  2. head() runs           your <title>, <meta>, seo(...)
+  3. document assembled    preloads, then head(), then the stylesheet
+                           -> all inside <head>`,
+      },
+      {
+        kind: "quote",
+        text: "This site uses it: every documentation page exports a head that calls seo(), while the layout keeps the title. Two sources, no duplicate tags, because a <title> from head replaces rather than joins.",
+      },
 
       { kind: "h2", text: "Images" },
       {
