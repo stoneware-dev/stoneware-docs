@@ -1,14 +1,15 @@
 /**
  * `/robots.txt`
  *
- * A route rather than a file in public/ for one reason: the Sitemap directive
- * must be an absolute URL, and a static file would have to hardcode the domain.
+ * A route rather than a file in public/ so it stays beside the sitemap it
+ * points at, and so both take their origin from the same constant.
  */
 
 import type { ActionContext } from "stoneware";
+import { siteURL } from "../lib/site.ts";
 
-export function GET({ url }: ActionContext): Response {
-  const body = ["User-agent: *", "Allow: /", "", `Sitemap: ${url.origin}/sitemap.xml`, ""].join(
+export function GET(_context: ActionContext): Response {
+  const body = ["User-agent: *", "Allow: /", "", `Sitemap: ${siteURL("/sitemap.xml")}`, ""].join(
     "\n",
   );
 

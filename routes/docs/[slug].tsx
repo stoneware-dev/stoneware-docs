@@ -3,7 +3,7 @@ import type { PageProps } from "stoneware";
 import { Layout } from "../../lib/Layout.tsx";
 import { Prose } from "../../lib/Prose.tsx";
 import { DOCS, getDoc, getNeighbors } from "../../lib/docs.ts";
-import { REPO_ISSUES_URL } from "../../lib/site.ts";
+import { REPO_ISSUES_URL, SITE_URL, siteURL } from "../../lib/site.ts";
 import { themeFromRequest } from "../../lib/theme.ts";
 import Feedback from "../../islands/Feedback.tsx";
 
@@ -20,10 +20,11 @@ export function staticPaths() {
  *
  * Title and description stay in Layout, which owns the document; seo() adds
  * what a shared link needs and Layout has no business knowing about. The
- * canonical URL is built from the request rather than a hardcoded domain, so
- * the site is correct wherever it is served from.
+ * canonical URL comes from SITE_URL rather than the request: Render terminates
+ * TLS and forwards http, so a request-derived origin declared the insecure URL
+ * canonical on a site served over https.
  */
-export function head({ params, url }: PageProps) {
+export function head({ params }: PageProps) {
   const page = getDoc(params.slug ?? "");
 
   // An unknown slug still matches this route, so it renders a "no such page"
@@ -31,7 +32,7 @@ export function head({ params, url }: PageProps) {
   // canonical, or the miss ends up in search results.
   if (!page) return seo({ robots: { index: false, follow: true } });
 
-  const canonical = `${url.origin}/docs/${page.slug}`;
+  const canonical = siteURL(`/docs/${page.slug}`);
 
   return seo({
     canonical,
@@ -50,7 +51,7 @@ export function head({ params, url }: PageProps) {
       headline: page.title,
       description: page.summary,
       url: canonical,
-      isPartOf: { "@type": "WebSite", name: "Stoneware", url: url.origin },
+      isPartOf: { "@type": "WebSite", name: "Stoneware", url: SITE_URL },
     },
   });
 }

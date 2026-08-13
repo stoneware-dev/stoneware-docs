@@ -3,7 +3,7 @@ import type { PageProps } from "stoneware";
 import { Layout } from "../lib/Layout.tsx";
 import { CodeBlock } from "../lib/highlight.tsx";
 import { DOCS } from "../lib/docs.ts";
-import { REPO_SLUG, REPO_URL } from "../lib/site.ts";
+import { REPO_SLUG, REPO_URL, SITE_URL, siteURL } from "../lib/site.ts";
 import { themeFromRequest } from "../lib/theme.ts";
 import InstallCommand from "../islands/InstallCommand.tsx";
 import LiveCounter from "../islands/LiveCounter.tsx";
@@ -12,9 +12,9 @@ import LiveCounter from "../islands/LiveCounter.tsx";
  * Measured on this site's own production build (gzipped), not estimated.
  * Reproduce with: stoneware build --root example, then gzip .stoneware/static/*.js
  */
-export function head({ url }: PageProps) {
+export function head(_props: PageProps) {
   return seo({
-    canonical: url.origin + "/",
+    canonical: siteURL("/"),
     openGraph: {
       title: "Stoneware — shape your web application at build/server time",
       description:
@@ -31,7 +31,7 @@ export function head({ url }: PageProps) {
       applicationCategory: "DeveloperApplication",
       operatingSystem: "Cross-platform",
       softwareVersion: "0.1.2",
-      url: url.origin,
+      url: SITE_URL,
       offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
     },
   });
