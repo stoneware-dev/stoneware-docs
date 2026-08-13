@@ -1145,6 +1145,38 @@ export async function POST({ request }: ActionContext) {
         kind: "p",
         text: "One consequence worth knowing: style-src 'self' blocks inline style attributes too. Islands that need to drive a value at runtime write a CSS custom property through the CSSOM, which CSP does not govern. The scroll gauge on this page works that way.",
       },
+      { kind: "h2", text: "Rotating the CSRF secret" },
+      {
+        kind: "p",
+        text: "STONEWARE_CSRF_SECRET signs every token. Replacing it invalidates all of them at once, which is what you want if it has leaked — or on a schedule, if you rotate secrets as a matter of course.",
+      },
+      {
+        kind: "code",
+        language: "sh",
+        label: "terminal",
+        text: `# Generate a new one
+bun -e 'console.log(crypto.randomUUID() + crypto.randomUUID())'
+
+# Set it wherever the app reads its environment, then restart.
+# Render, Railway, Fly: the dashboard. Docker: the compose file. Local: .env`,
+      },
+      {
+        kind: "p",
+        text: "The cost is one round of failed submissions: any form already rendered in a visitor's browser carries a token signed with the old secret and will be rejected. They see the CSRF error and succeed on a reload. There is no rolling window that accepts both, deliberately — accepting an old secret after a rotation is the one thing a rotation is supposed to stop.",
+      },
+      {
+        kind: "list",
+        items: [
+          "Rotate on leak, on staff changes, or on a schedule you set. Nothing expires it automatically.",
+          "A production build refuses to start without one rather than falling back to something that appears to work.",
+          "Tokens carry their own expiry too — 24 hours by default, adjustable with csrf.expiresIn.",
+        ],
+      },
+      {
+        kind: "quote",
+        text: "Tokens are signed with this secret and bound to nothing else. Same-origin policy is what stops an attacker reading one out of your pages; the token proves the request came from a page your server rendered, not that it came from a particular visitor.",
+      },
+
       { kind: "h2", text: "Everything else" },
       {
         kind: "list",
