@@ -1130,7 +1130,20 @@ export async function POST({ request }: ActionContext) {
       },
       {
         kind: "p",
-        text: "raw() is deliberately more effort than the safe path, and greppable during review. Two things the renderer refuses outright, because escaping cannot make them safe: interpolating dynamic values into script or style bodies, and attribute names that could break out of a tag.",
+        text: "raw() is deliberately more effort than the safe path, and greppable during review. dangerouslySetInnerHTML works too, on both the server and the client, and is named the way it is for the same reason — both hand the browser markup you vouched for.",
+      },
+      {
+        kind: "p",
+        text: "Three things the renderer refuses outright, because escaping cannot make them safe: interpolating dynamic values into a script or style body, attribute names that could break out of a tag, and a javascript: or vbscript: URL in an attribute the browser follows.",
+      },
+      {
+        kind: "code",
+        text: `<a href={userSupplied}>          // refused if the scheme executes
+<div onclick={fromASpread}>      // dropped, in any casing`,
+      },
+      {
+        kind: "quote",
+        text: "The server and the client share one module deciding this. They used to decide separately and drifted once — the handler check was tightened in the renderer and left alone in the client, so an island was guarded on first paint and unguarded on every update after it. A shared policy makes that class of bug impossible rather than merely unlikely.",
       },
       { kind: "h2", text: "Content-Security-Policy" },
       {
