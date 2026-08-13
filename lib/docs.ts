@@ -1723,6 +1723,92 @@ browser navigates to it       →  the _404 page, as before`,
       },
     ],
   },
+
+  {
+    slug: "benchmark",
+    title: "Benchmark",
+    summary: "The same 16-page site built in Stoneware, Astro and Next.js, measured.",
+    blocks: [
+      {
+        kind: "p",
+        text: "A portfolio and blog: home, about, contact, a blog index with five posts, and a docs section with seven pages. Built three times with matching content and the same five interactive components, then measured under Lighthouse mobile throttling — 1638 Kbps, 150 ms RTT, 4x CPU slowdown — 10 runs per page, median reported.",
+      },
+      {
+        kind: "figure",
+        label: "Stoneware 0.1.3 · Astro 5.18.2 · Next.js 15.5.23 (React 19.2.8)",
+        text: `                      Stoneware      Astro     Next.js
+  ──────────────────────────────────────────────────────
+  JS transferred          14.2 KB   193.1 KB    346.0 KB
+  HTML                     3.4 KB     8.1 KB     10.2 KB
+  Total transferred       22.5 KB   205.2 KB    359.4 KB
+  Requests                      8          8           7
+  ──────────────────────────────────────────────────────
+  LCP                      1217 ms    2253 ms     2965 ms
+  FCP                      1062 ms    1429 ms      754 ms
+  Total blocking time         0 ms       0 ms       58 ms
+  CLS                        0.000      0.000       0.000
+  Lighthouse perf              100         99          95
+  ──────────────────────────────────────────────────────
+  Build, 16 pages cold      0.71 s    35.6 s      61.6 s`,
+      },
+
+      { kind: "h2", text: "JavaScript is the whole story" },
+      {
+        kind: "p",
+        text: "All three score CLS 0.000 and a TTFB of 1–3 ms against a warm local server, so layout stability and server latency are noise here. What separates them is the client bundle: 14.2 KB against 193.1 and 346.0, uncompressed, for the same five islands. At 1638 Kbps that is roughly one and 1.7 extra seconds of download, and the LCP spread tracks it almost exactly.",
+      },
+      {
+        kind: "figure",
+        label: "how much more JavaScript, for the same page",
+        text: `  Stoneware  ██                                    14.2 KB   1.0x
+  Astro      ████████████████████████             193.1 KB  13.6x
+  Next.js    ███████████████████████████████████  346.0 KB  24.4x`,
+      },
+
+      { kind: "h2", text: "The shape of the result is more interesting than the totals" },
+      {
+        kind: "p",
+        text: "Astro's LCP is almost perfectly flat — 2252 to 2253 ms across nearly every page, whether that page carries 426 or 3,367 bytes of content. Next.js shows the same pattern at about 2960 ms. A fixed cost is dominating: the React client runtime sits on the critical path every time, so page weight is irrelevant beside it.",
+      },
+      {
+        kind: "p",
+        text: "Stoneware is the only one whose LCP actually varies with the page, from 909 ms to 1512 ms. That is what it looks like when there is no fixed runtime cost for content to hide behind — the page is the only thing being paid for.",
+      },
+      {
+        kind: "quote",
+        text: "Framework overhead also scales differently. Stoneware adds a roughly constant ~2.4 KB of HTML per page. Next.js grows with content — 9.7 KB on the home page to 12.2 KB on a blog post — because the RSC flight payload re-encodes the rendered output alongside the HTML, so the content is effectively sent twice.",
+      },
+
+      { kind: "h2", text: "Where the others win" },
+      {
+        kind: "list",
+        items: [
+          "Next.js wins FCP outright: 754 ms against 1062 and 1429. It inlines more of the critical path and manages CSS through the bundle, so first paint lands early — and then LCP waits about 2.2 s longer for the JavaScript that makes the paint useful. Fast first paint, slow useful paint.",
+          "Next.js also serves the fewest requests, 7 against 8.",
+          "Astro matches Stoneware on total blocking time at 0 ms. Next.js is the only one with meaningful main-thread blocking, at 58 ms median and up to 82 ms.",
+        ],
+      },
+      {
+        kind: "p",
+        text: "The Lighthouse scores are 100, 99 and 95. All three would pass a casual audit, which is worth knowing about the score itself: a 24x spread in JavaScript shipped is invisible inside it.",
+      },
+
+      { kind: "h2", text: "Reading the numbers fairly" },
+      {
+        kind: "list",
+        items: [
+          "Bytes are uncompressed. Production would gzip or brotli all three, which narrows the transfer gap — but not the parse-and-execute gap. 346 KB of JavaScript still costs main-thread time that 14.2 KB does not.",
+          "The build column is not like-for-like. stoneware build emits a server bundle; Astro and Next.js prerender 16 HTML files. The comparable command is stoneware export, measured at 0.63 s. Build timing was also the noisiest metric — treat the ordering as the result and the absolute values as indicative.",
+          "Serving modes differ. Stoneware rendered each request through stoneware start; the other two were prerendered static files. That favours them on TTFB, though all three measured 1–3 ms locally.",
+          "The content is lighter than a real site's — posts run 214 to 500 words. A heavier corpus would widen the HTML gaps and shift LCP further toward content download.",
+        ],
+      },
+      {
+        kind: "quote",
+        text: "Measured on one machine, in one session, with the browser open. A 10-run median absorbs some of that but not all of it. The numbers are reproducible from the benchmark repository rather than asserted here.",
+      },
+    ],
+  },
 ];
 
 export function getDoc(slug: string): DocPage | undefined {
