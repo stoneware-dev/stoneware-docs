@@ -36,8 +36,12 @@ export function Layout({ title, description, section = "home", theme, children }
         <title>{title}</title>
         <meta name="description" content={description} />
         <meta name="color-scheme" content="light dark" />
-        {/* One vector file covers every size a browser asks for, so there is
-            no set of PNG variants to keep in step with the mark. */}
+        {/* The vector covers every size a browser asks for, so there is no set
+            of PNG variants to keep in step with the mark. The .ico is the
+            fallback for clients that ignore the link entirely and fetch
+            /favicon.ico by convention - unfurlers, feed readers, bookmark
+            tools. Both are rasterised from the same mark.svg geometry. */}
+        <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
         <link rel="icon" href="/mark.svg" type="image/svg+xml" />
         <link rel="stylesheet" href="/styles.css" />
       </head>
