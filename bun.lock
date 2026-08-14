@@ -5,7 +5,7 @@
     "": {
       "name": "test",
       "dependencies": {
-        "stoneware": "^0.1.2",
+        "stoneware": "^0.1.3",
       },
       "devDependencies": {
         "@types/bun": "^1.3.0",
@@ -21,7 +21,7 @@
 
     "bun-types": ["bun-types@1.3.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
 
-    "stoneware": ["stoneware@0.1.2", "", { "dependencies": { "@preact/signals-core": "^1.8.0" }, "bin": { "stoneware": "bin/stoneware.mjs" } }, "sha512-nowOGr/pq80QSlH8grptTDgOC1UnhO92aCR61Fs0JGkYlwLrR0H85oqMDeCDXY+YIgs04QgAXsvLzwLzDGV9Ag=="],
+    "stoneware": ["stoneware@0.1.3", "", { "dependencies": { "@preact/signals-core": "^1.8.0" }, "bin": { "stoneware": "bin/stoneware.mjs" } }, "sha512-5TZhgr7C/HvqnxFSKs+XIDx0AXMHA78YDM+2HtTZUk6/HOkF/QPib+taE9TUUJubGVq1ueH4pRqi4Rk1Bg5iwQ=="],
 
     "undici-types": ["undici-types@8.3.0", "", {}, "sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ=="],
   }
