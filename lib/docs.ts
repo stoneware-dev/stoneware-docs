@@ -1317,15 +1317,18 @@ islands/Counter.tsx:3:10
       {
         kind: "list",
         items: [
-          "The Bun runtime. Not Node, not a V8 isolate — the framework is built on Bun.serve, Bun.CSRF, Bun.escapeHTML and Bun.FileSystemRouter.",
-          "The routes/ directory, on disk, at request time. Path matching reads its filenames on every request.",
-          ".stoneware/islands.json from the build. Without it the server tries to rebuild island bundles, which writes to disk.",
+          "The Bun runtime. Not Node, not a V8 isolate — the framework is built on Bun.serve, Bun.CSRF and Bun.escapeHTML.",
+          ".stoneware/ from the build: the server bundle, the island manifest and the island chunks.",
           "public/, if the app serves static assets.",
         ],
       },
       {
         kind: "quote",
-        text: "Those last three are why a platform that bundles your function needs to be told about them explicitly: a directory that is only ever scanned is invisible to a bundler tracing imports.",
+        text: "Since 0.1.3, routes/ and islands/ are not on that list. A build inlines every route and island into the bundle and writes a pattern table beside it, so the source tree is a build-time input rather than a runtime dependency.",
+      },
+      {
+        kind: "p",
+        text: "That matters wherever the machine that builds is not the machine that serves — a container image, a serverless function, a CI artifact. The build resolves its own project root from the bundle's location rather than recording the path it was built at, so the output runs wherever it is unpacked.",
       },
 
       { kind: "h2", text: "The server entry point" },
@@ -1386,21 +1389,19 @@ bun server.ts        # serves`,
       {
         kind: "figure",
         label: "the runtime decides, not the framework",
-        text: `                      runs Bun?   ships whole dir?
-  VPS / Docker            yes           yes        works as-is
-  Fly.io                  yes           yes        works as-is
-  Railway / Render        yes           yes        works as-is
+        text: `                      runs Bun?
+  VPS / Docker            yes        works as-is
+  Fly.io                  yes        works as-is
+  Railway / Render        yes        works as-is
+  Vercel                  yes        stoneware build --target vercel
 
-  Vercel                  yes           no         needs includeFiles
-                                                   (it bundles the function)
-
-  Netlify / Cloudflare     no           -          wrong runtime
-  GitHub Pages, any CDN    no           -          no runtime at all
-                                                   -> stoneware export`,
+  Netlify / Cloudflare     no        wrong runtime
+  GitHub Pages, any CDN    no        no runtime at all
+                                     -> stoneware export`,
       },
       {
         kind: "p",
-        text: "Anywhere you can run `bun server.ts` against the project directory, nothing extra is required — the directory is simply there. Cloudflare Workers run V8 isolates and Netlify Functions run Node, so neither can host a Stoneware server; for those, prerender the site instead.",
+        text: "The runtime is now the only question the table asks. Whether a platform ships the whole directory or bundles a function used to matter a great deal, because the server read routes/ on every request; a relocatable build removes that distinction. Cloudflare Workers run V8 isolates and Netlify Functions run Node, so neither can host a Stoneware server — for those, prerender the site instead.",
       },
 
       { kind: "h2", text: "Static export" },
@@ -1460,6 +1461,16 @@ bun server.ts        # serves`,
         text: "Vercel runs Bun as a first-class function runtime. Its Bun framework preset detects a single Bun.serve() call in a root server.ts and routes every request through it, so no /api directory and no routing configuration are needed. The preset requires a bun.lock file to be present.",
       },
       {
+        kind: "p",
+        text: "stoneware build --target vercel writes both pieces the preset looks for: a root server.js that imports the built bundle, and a vercel.json if the project has none. An existing vercel.json is never rewritten — it is hand-maintained configuration that may carry regions, headers or redirects — so anything missing from it is reported instead.",
+      },
+      {
+        kind: "code",
+        language: "sh",
+        label: "terminal",
+        text: `stoneware build --target vercel`,
+      },
+      {
         kind: "code",
         language: "txt",
         label: "vercel.json",
@@ -1467,8 +1478,17 @@ bun server.ts        # serves`,
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "bun",
   "bunVersion": "1.x",
-  "buildCommand": "bun node_modules/stoneware/bin/stoneware.mjs build"
+  "buildCommand": "bun node_modules/stoneware/bin/stoneware.mjs build --target vercel"
 }`,
+      },
+      {
+        kind: "code",
+        label: "server.js — generated, do not edit",
+        text: `import "./.stoneware/server.js";`,
+      },
+      {
+        kind: "p",
+        text: "A side-effect import, deliberately. The bundle calls Bun.serve() as it evaluates, and that call is exactly what the preset detects. Exporting a handler instead would leave the server unstarted and every request unrouted.",
       },
       {
         kind: "quote",
@@ -1488,7 +1508,11 @@ bun server.ts        # serves`,
       },
       {
         kind: "p",
-        text: "If the function starts but crashes, the likely cause is that routes/ or .stoneware/islands.json did not reach the runtime. A serverless filesystem is read-only outside /tmp, so a missing build manifest makes the server fall back to rebuilding island bundles, and that write fails in a way that looks unrelated to the cause. The fallback is the /api model — move the entry to api/server.ts and add rewrites, where functions.includeFiles does apply because the pattern then matches a real function.",
+        text: "If the function starts but crashes, the remaining suspect is .stoneware/ itself. A serverless filesystem is read-only outside /tmp, so a missing island manifest used to make the server fall back to rebuilding chunks, and that write failed in a way that looked unrelated to the cause. It now fails immediately with a message naming the directory instead.",
+      },
+      {
+        kind: "quote",
+        text: "Before 0.1.3 the usual failure was different and quieter: the bundle recorded the absolute path it was built at and rescanned routes/ on every request, so a function that started perfectly well answered 404 for every path. If you hit that, upgrade rather than reaching for the /api model.",
       },
 
       { kind: "h2", text: "When a serverless deploy crashes" },
@@ -1506,11 +1530,11 @@ bun server.ts        # serves`,
         text: `import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-for (const path of ["routes", ".stoneware/islands.json"]) {
-  if (!existsSync(resolve(process.cwd(), path))) {
-    console.error(\`[stoneware] missing \${path} in \${process.cwd()} — ` +
-          `it was not included in the deployed bundle\`);
-  }
+if (!existsSync(resolve(process.cwd(), ".stoneware/islands.json"))) {
+  console.error(
+    \`[stoneware] missing .stoneware/ in \${process.cwd()} — \` +
+      "the build output did not reach the runtime",
+  );
 }`,
       },
     ],
