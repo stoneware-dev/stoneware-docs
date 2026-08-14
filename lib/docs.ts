@@ -1403,7 +1403,7 @@ islands/Counter.tsx:3:10
         text: `$ stoneware doctor
 
   ok    Bun 1.3.14
-  ok    stoneware 0.1.4
+  ok    stoneware 0.1.5
   FAIL  tsconfig compilerOptions.jsxImportSource is "react", expected "stoneware"
         JSX will compile against React's runtime. This does not fail at build
         time - it fails mid-render as a TypeError about an object, pointing at
@@ -1496,6 +1496,7 @@ islands/Counter.tsx:3:10
           ".stoneware/ from the build: the server bundle, the island manifest and the island chunks.",
           "public/, if the app serves static assets.",
           "routes/ and islands/, on disk, at request time — on 0.1.3 and earlier. Path matching reads the filenames on every request, and the island registry is rebuilt from the sources at boot.",
+          ".stoneware/islands.json reachable by whatever packages your function — on 0.1.4. Inlined into the bundle from 0.1.5, so it no longer has to travel as a file.",
         ],
       },
       {
@@ -1707,7 +1708,7 @@ Bun.serve({
       },
       {
         kind: "p",
-        text: "If the function starts but crashes, the remaining suspect is .stoneware/ itself. A serverless filesystem is read-only outside /tmp, so a missing island manifest used to make the server fall back to rebuilding chunks, and that write failed in a way that looked unrelated to the cause. It now fails immediately with a message naming the directory instead.",
+        text: "On 0.1.5 the function carries what it needs. If one still crashes, the remaining suspect is .stoneware/ itself. A serverless filesystem is read-only outside /tmp, so a missing island manifest used to make the server fall back to rebuilding chunks, and that write failed in a way that looked unrelated to the cause. It now fails immediately with a message naming the directory instead.",
       },
       {
         kind: "quote",
@@ -1742,11 +1743,61 @@ if (!existsSync(resolve(process.cwd(), ".stoneware/islands.json"))) {
   {
     slug: "whats-new",
     title: "What's new",
-    summary: "0.1.4 — what changed, what it replaces, and why.",
+    summary: "0.1.5 and 0.1.4 — what changed, what it replaces, and why.",
     blocks: [
+      { kind: "h2", text: "0.1.5" },
       {
-        kind: "h2", text: "0.1.4",
+        kind: "p",
+        text: "Published 15 August 2026, hours after 0.1.4, because 0.1.4 did not finish the job it set out to do. Both belong on this page: if you are deploying to a platform that bundles your app into a function, 0.1.4 alone still fails.",
       },
+
+      { kind: "h2", text: "The rest of the build now travels with the bundle" },
+      {
+        kind: "figure",
+        label: "what reached a Vercel function",
+        text: `  0.1.4                           0.1.5
+  ──────────────────────────      ──────────────────────────
+  server.mjs      arrived         server.mjs      arrived
+  islands.json    left behind     islands.json    inlined
+  stylesheet.txt  left behind     stylesheet.txt  inlined
+
+  Island manifest not found       serves`,
+      },
+      {
+        kind: "p",
+        text: "0.1.4 stopped the bundle recording its build path and stopped it rescanning routes/, which is what made a copied build 404 every path. It did not stop the server reading .stoneware/islands.json at boot — and that read computed its path at runtime.",
+      },
+      {
+        kind: "p",
+        text: "A platform that builds a function by tracing imports cannot follow a path computed at runtime. It followed the static import of the server bundle and carried that across; it never saw the manifest. So the function started with the bundle intact, threw before its first request, and reported a bare 500.",
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "the log that named it",
+        text: `Error: Island manifest not found at /var/task/.stoneware/islands.json
+    at rebuildIslands (/var/task/.stoneware/server.mjs:1462:14)
+    at async createApp (/var/task/.stoneware/server.mjs:1482:8)`,
+      },
+      {
+        kind: "p",
+        text: "The build now writes both the island manifest and the stylesheet URL into the generated entry as values. Nothing about serving a request touches the filesystem for them, so there is nothing left for a bundler to miss.",
+      },
+      {
+        kind: "quote",
+        text: "The same mistake twice, one layer apart: a path assembled at runtime is invisible to a tool reasoning about imports. First it was routes/, then it was islands.json. A test now asserts the manifest is still inlined, because the way this regresses is silent until someone deploys.",
+      },
+
+      { kind: "h2", text: "Also in 0.1.5" },
+      {
+        kind: "list",
+        items: [
+          "stoneware doctor warns on 0.1.4 as well as on 0.1.0-0.1.3, naming which of the two deploy failures each version has.",
+          "stoneware preview no longer claims an exported site has no Content-Security-Policy. It stopped being true when 0.1.4 started embedding one, and the message had not caught up.",
+        ],
+      },
+
+      { kind: "h2", text: "0.1.4" },
       {
         kind: "p",
         text: "Published 15 August 2026. One theme: a build should run somewhere other than the machine that produced it. That sounds obvious, and it was not true — which is why deploying to a platform that bundles your app failed in a way that looked like a routing bug.",
