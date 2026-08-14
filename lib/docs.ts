@@ -1507,25 +1507,10 @@ islands/Counter.tsx:3:10
         text: "That matters wherever the machine that builds is not the machine that serves — a container image, a serverless function, a CI artifact. The build resolves its own project root from the bundle's location rather than recording the path it was built at, so the output runs wherever it is unpacked.",
       },
 
-      { kind: "h2", text: "The server entry point" },
+      { kind: "h2", text: "Starting the server" },
       {
         kind: "p",
-        text: "Add a server.ts at the project root. One Bun.serve() call, handing every request to the app. This same file runs everywhere — there is nothing platform-specific in it.",
-      },
-      {
-        kind: "code",
-        label: "server.ts",
-        text: `import { createApp } from "stoneware";
-import config from "./stoneware.config.ts";
-
-// dev: false reads the island manifest that \`stoneware build\` wrote, rather
-// than rebuilding chunks (and changing their hashed filenames) on every start.
-const app = await createApp(config, { dev: false });
-
-Bun.serve({
-  port: Number(Bun.env.PORT ?? 3000),
-  fetch: (request) => app.fetch(request),
-});`,
+        text: "You do not write an entry point. stoneware build emits one, and stoneware start runs it — that is the whole deploy on any host that can run Bun.",
       },
       {
         kind: "code",
@@ -1533,7 +1518,40 @@ Bun.serve({
         label: "deploy",
         text: `bun install
 stoneware build      # writes .stoneware/
-bun server.ts        # serves`,
+stoneware start      # serves .stoneware/server.js`,
+      },
+      {
+        kind: "quote",
+        text: "Earlier versions of this page told you to hand-write a server.ts calling createApp(config, { dev: false }). Do not. With no root in the config, that resolves paths against process.cwd(), which is the project directory when you run it locally and something else entirely inside a container or a serverless function — so it starts, finds no routes/ and no island manifest, and crashes before the first request. The generated bundle derives its root from its own location instead.",
+      },
+      {
+        kind: "p",
+        text: "If you genuinely need a custom entry point — extra middleware around the app, a second port, a health probe outside the router — pass root explicitly rather than letting it default.",
+      },
+      {
+        kind: "code",
+        label: "server.ts — only if you need one",
+        text: `import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { createApp } from "stoneware";
+import config from "./stoneware.config.ts";
+
+// From this file's own location, never process.cwd(): the directory a build
+// ran in is routinely not the directory it is served from.
+const root = dirname(fileURLToPath(import.meta.url));
+
+// dev: false reads the island manifest that \`stoneware build\` wrote, rather
+// than rebuilding chunks (and changing their hashed filenames) on every start.
+const app = await createApp({ ...config, root }, { dev: false });
+
+Bun.serve({
+  port: Number(Bun.env.PORT ?? 3000),
+  // Bun.serve defaults to localhost, which is loopback-only. Every container
+  // runtime reaches the process through a proxy on another interface, so
+  // binding localhost makes the service unreachable and health checks fail.
+  hostname: Bun.env.HOST ?? "0.0.0.0",
+  fetch: (request) => app.fetch(request),
+});`,
       },
 
       { kind: "h2", text: "Behind a proxy that terminates TLS" },
