@@ -1042,6 +1042,28 @@ routes/index.css        lib/Card.css        islands/Counter.css
         text: "The three scanned directories are routes/, islands/ and lib/. Anything under public/ is still served as-is at the URL root, which remains the right place for a stylesheet you want at a fixed, unhashed URL.",
       },
 
+      { kind: "h2", text: "The style attribute does not work here" },
+      {
+        kind: "p",
+        text: "The renderer accepts style={{ color: \"red\" }} and serialises it correctly. The browser will then refuse to apply it, because the default policy sets style-src without unsafe-inline — and that governs style attributes, not only <style> blocks. The element is there, the declaration is in the HTML, and nothing happens.",
+      },
+      {
+        kind: "figure",
+        label: "what a class buys that an attribute does not",
+        text: `  style={{ color: "red" }}     emitted, then ignored by the browser
+
+  class="note"                 works, is cacheable, and lives beside the
+  + note.css                   component the build collects it from`,
+      },
+      {
+        kind: "p",
+        text: "From 0.1.4 development warns when it sees one, naming the element and the fix. It stays silent if you have widened the policy or set csp: false, because then nothing is being blocked. The attribute is still emitted either way — a diagnostic that rewrote your markup would be worse than the problem.",
+      },
+      {
+        kind: "quote",
+        text: "An island that genuinely needs to drive a value at runtime — a progress bar, a scroll gauge — sets a CSS custom property through the CSSOM instead. CSP does not govern that, and the value stays in a stylesheet where it belongs.",
+      },
+
       { kind: "h2", text: "Why not CSS Modules" },
       {
         kind: "p",
@@ -1158,6 +1180,34 @@ export async function POST({ request }: ActionContext) {
         kind: "p",
         text: "One consequence worth knowing: style-src 'self' blocks inline style attributes too. Islands that need to drive a value at runtime write a CSS custom property through the CSSOM, which CSP does not govern. The scroll gauge on this page works that way.",
       },
+      {
+        kind: "p",
+        text: "From 0.1.4 the renderer says so rather than leaving you to find it. The attribute is still emitted — a warning must not change output, and the project may be about to widen its policy — but development prints a line naming the element, and stays quiet if the policy allows unsafe-inline or sets no style-src at all.",
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "development",
+        text: `[stoneware] <p style="..."> will be ignored by the browser.
+  The Content-Security-Policy sets style-src without 'unsafe-inline', which
+  blocks style attributes as well as <style> blocks. The markup renders, the
+  declaration is in the HTML, and it simply never applies.
+  Use a class and a .css file beside the component - the build collects it.`,
+      },
+
+      { kind: "h2", text: "The policy after a static export" },
+      {
+        kind: "p",
+        text: "A CSP is a response header, so a directory of files cannot carry one. Until 0.1.4 that made the claim above false for stoneware export: the pages went out with no policy at all unless the host was configured to send one, and nothing indicated the loss.",
+      },
+      {
+        kind: "p",
+        text: "An export now writes both a _headers file — read by Netlify and Cloudflare Pages, carrying the full policy and the other security headers — and a meta http-equiv tag in every page, which works on any host including GitHub Pages. Neither covers everything alone.",
+      },
+      {
+        kind: "quote",
+        text: "frame-ancestors, report-uri and sandbox are ignored by browsers when they arrive in a meta tag. They are stripped from it rather than emitted, because a policy that lists frame-ancestors without enforcing it advertises clickjacking protection the page does not have. The export names them at the end of the run, so what a header-less host gives up is stated rather than assumed.",
+      },
       { kind: "h2", text: "Rotating the CSRF secret" },
       {
         kind: "p",
@@ -1216,10 +1266,20 @@ bun -e 'console.log(crypto.randomUUID() + crypto.randomUUID())'
         kind: "code",
         language: "sh",
         label: "terminal",
-        text: `stoneware dev     # dev server with hot reload
-stoneware build   # production build
-stoneware start   # run the production server bundle
-stoneware export  # prerender every page to static HTML`,
+        text: `stoneware dev      # dev server with hot reload
+stoneware build    # production build
+stoneware start    # run the production server bundle
+stoneware export   # prerender every page to static HTML
+
+stoneware preview  # serve an export the way a static host would   (0.1.4)
+stoneware routes   # print the route table, in match order         (0.1.4)
+stoneware doctor   # check the project setup                       (0.1.4)
+
+stoneware --version   # both versions, for a bug report            (0.1.4)`,
+      },
+      {
+        kind: "quote",
+        text: "The four marked 0.1.4 are on main and not yet published. On 0.1.3 the CLI has dev, build, start and export only.",
       },
       { kind: "h2", text: "Development" },
       {
@@ -1230,6 +1290,23 @@ stoneware export  # prerender every page to static HTML`,
       {
         kind: "p",
         text: "If the port is already taken, dev moves to the next free one and says so — a busy port in development is nearly always your own previous run. Production does the opposite and fails loudly, because a platform routes traffic to the port it assigned and quietly binding a different one produces a service that looks healthy in its own logs while every request from outside fails.",
+      },
+      {
+        kind: "p",
+        text: "From 0.1.4 dev asks whether anything is already answering on the port before it binds, rather than only reacting to a failed bind. The case that needed it: dev binds localhost and start binds 0.0.0.0, which are different sockets, so two projects could each hold :3000 with neither seeing an error — and requests went to whichever one the client's IPv4/IPv6 preference picked.",
+      },
+      {
+        kind: "code",
+        language: "sh",
+        label: "terminal",
+        text: `$ stoneware dev --port 3000 --open
+
+[stoneware] something is already serving on port 3000, trying 3001
+[stoneware] dev server on http://localhost:3001`,
+      },
+      {
+        kind: "p",
+        text: "--open launches a browser at the served URL. Only on a first start, never on a hot reload — the dev server re-evaluates its own module on every save, so opening unconditionally would spawn a tab per keystroke.",
       },
 
       { kind: "h2", text: "When something breaks" },
@@ -1273,12 +1350,82 @@ islands/Counter.tsx:3:10
       },
       {
         kind: "quote",
-        text: "Route modules are inlined into the server bundle, but path matching still uses Bun.FileSystemRouter, so routes/ must exist at runtime. It is read for its filenames, never its contents.",
+        text: "On 0.1.3 and earlier, route modules are inlined into the server bundle but path matching still uses Bun.FileSystemRouter, so routes/ must exist at runtime. From 0.1.4 the build writes a pattern table instead and the source tree is no longer needed to serve.",
       },
+      {
+        kind: "code",
+        language: "sh",
+        label: "terminal",
+        text: `$ stoneware build
+
+[stoneware] build complete in 156ms
+  server   .stoneware/server.js
+  routes   4
+  islands  3
+             Counter              247 B
+             Badge                191 B
+             @runtime             45 B
+             total                483 B`,
+      },
+      {
+        kind: "p",
+        text: "Sizes are per island from 0.1.4. JavaScript being opt-in is only a claim you can check if the cost is shown next to the name of the thing that caused it.",
+      },
+
+      { kind: "h2", text: "Seeing the route table" },
+      {
+        kind: "p",
+        text: "Nothing about two filenames says which one a request reaches first. stoneware routes prints the compiled table in the order patterns are actually tried — literal before dynamic before catch-all — along with whether each is a page or a server action.",
+      },
+      {
+        kind: "code",
+        language: "sh",
+        label: "terminal",
+        text: `$ stoneware routes
+
+  /api/echo     POST     routes/api/echo.ts
+  /blog/[slug]  GET      routes/blog/[slug].tsx
+  /plain        GET      routes/plain.tsx
+  /             GET      routes/index.tsx
+
+  4 route(s), listed in match order.`,
+      },
+      {
+        kind: "p",
+        text: "Reserved routes — _404, _500, _middleware — are listed rather than hidden. They are real files doing real work, and leaving them out invites the conclusion that they were not picked up. A module that fails to import is reported as unknown instead of taking the listing down: a route list is most useful precisely when something is broken.",
+      },
+
+      { kind: "h2", text: "Checking the setup" },
+      {
+        kind: "p",
+        text: "stoneware doctor checks the things a running server cannot check for you. A missing CSRF secret already stops production from starting with a message that names it, so doctor does not re-check it; what it covers is the class of problem that surfaces later as something apparently unrelated.",
+      },
+      {
+        kind: "code",
+        language: "sh",
+        label: "terminal",
+        text: `$ stoneware doctor
+
+  ok    Bun 1.3.14
+  ok    stoneware 0.1.4
+  FAIL  tsconfig compilerOptions.jsxImportSource is "react", expected "stoneware"
+        JSX will compile against React's runtime. This does not fail at build
+        time - it fails mid-render as a TypeError about an object, pointing at
+        a template that is fine.
+  ok    routes/ with an index route
+  warn  .gitignore does not cover .env
+
+  1 error(s), 1 warning(s).`,
+      },
+      {
+        kind: "p",
+        text: "It exits non-zero on an error so it is usable in CI, and zero on a warning — failing a pipeline over a judgement call teaches people to stop running it.",
+      },
+
       { kind: "h2", text: "Static export" },
       {
         kind: "p",
-        text: "stoneware export prerenders every page to a directory of plain HTML files. It builds first, then fetches each route through the ordinary request pipeline — the same router, the same renderer, the same response headers — so what lands on disk is byte-identical to what the server would have sent. There is no second rendering path to drift.",
+        text: "stoneware export prerenders every page to a directory of plain HTML files. It builds first, then fetches each route through the ordinary request pipeline — the same router, the same renderer — so what lands on disk is what the server would have sent, with one deliberate addition covered below. There is no second rendering path to drift.",
       },
       {
         kind: "code",
@@ -1288,11 +1435,43 @@ islands/Counter.tsx:3:10
 
 [stoneware] exported 12 page(s) in 486ms
   output   /srv/my-site/dist
-  skipped  /subscribe (renders a CSRF token)`,
+  skipped  /subscribe (renders a CSRF token)
+  csp      embedded in every page, and written to _headers
+           frame-ancestors 'none' needs a real header —
+           _headers covers Netlify and Cloudflare Pages, other hosts need config`,
       },
       {
         kind: "p",
         text: "The output has no runtime requirement at all, which is the point: it deploys to Cloudflare Pages, Netlify, GitHub Pages or any CDN — hosts that cannot run Bun and so cannot run a Stoneware server.",
+      },
+
+      { kind: "h2", text: "The policy an exported site carries" },
+      {
+        kind: "p",
+        text: "A Content-Security-Policy is a response header, and a directory of files cannot carry one. Before 0.1.4 that meant an exported site had no policy at all until the host was configured to send it — the framework's strongest default, silently absent, with nothing to indicate it.",
+      },
+      {
+        kind: "figure",
+        label: "what each mechanism covers",
+        text: `  stoneware start     header          everything, frame-ancestors included
+
+  export → _headers   header          everything, on hosts that read the file
+                                      (Netlify, Cloudflare Pages)
+
+  export → <meta>     in the markup   everything except frame-ancestors,
+                                      report-uri and sandbox`,
+      },
+      {
+        kind: "p",
+        text: "Both are written, because neither is sufficient alone. _headers is inert on a host that does not read it; a meta tag works anywhere, including GitHub Pages, but browsers ignore three directives when they arrive that way. Those three are stripped from the tag rather than emitted, because a policy that lists frame-ancestors and does not enforce it advertises protection the page does not have.",
+      },
+      {
+        kind: "quote",
+        text: "So on Netlify and Cloudflare Pages an export is protected exactly as the server would protect it. Anywhere without header support you keep everything except clickjacking protection, and the export names what is missing rather than reporting parity.",
+      },
+      {
+        kind: "p",
+        text: "The meta tag is placed after any charset declaration and before the first stylesheet, preload or script. Both constraints are real: a charset has to land within the first 1024 bytes, and a meta policy only governs what is declared after it.",
       },
 
       { kind: "h2", text: "Environment" },
@@ -1630,12 +1809,62 @@ if (!existsSync(resolve(process.cwd(), ".stoneware/islands.json"))) {
         text: "0.1.3 already walked to the next free port when a bind failed. This is the case where nothing fails: two servers hold the same port on different addresses, both log success, and requests land on whichever one the client's address preference picks. Asking whether the port answers catches it; asking whether the bind failed cannot.",
       },
 
+      { kind: "h2", text: "An exported site keeps its policy" },
+      {
+        kind: "figure",
+        label: "what a static host actually sent",
+        text: `  before                          now
+  ──────────────────────────      ──────────────────────────
+  no Content-Security-Policy      _headers, read by Netlify
+  at all — it is a response       and Cloudflare Pages, with
+  header, and static files        the full policy
+  carry none
+                                  <meta http-equiv> in every
+  the framework's strongest       page for every other host,
+  default, silently absent        minus the three directives
+                                  a meta tag cannot carry`,
+      },
+      {
+        kind: "p",
+        text: "The claim that the CSP is never silently absent held for stoneware start and quietly failed for stoneware export. Both files are written now, because neither covers every host alone. frame-ancestors, report-uri and sandbox are stripped from the meta tag rather than emitted — browsers ignore them there, and listing a directive you do not enforce is worse than omitting it. The export names what a header-less host gives up. See security.",
+      },
+
+      { kind: "h2", text: "Three new commands" },
+      {
+        kind: "figure",
+        label: "stoneware preview / routes / doctor",
+        text: `  preview   serves an export with its own conventions —
+            <path>/index.html, 404.html for a miss. Previously
+            the only way to check an export was to deploy it.
+
+  routes    the compiled table in match order, so you can see
+            which pattern a URL actually reaches.
+
+  doctor    setup problems a running server cannot report:
+            tsconfig JSX settings, Bun version, .gitignore.`,
+      },
+      {
+        kind: "p",
+        text: "doctor's most useful check is the tsconfig one. JSX pointed at React's runtime compiles cleanly and then fails during a render, as a TypeError about an object, blaming a template that is perfectly correct. Also new: stoneware --version prints both the framework and Bun versions, and stoneware dev --open launches a browser.",
+      },
+
+      { kind: "h2", text: "Two things that used to fail quietly" },
+      {
+        kind: "list",
+        items: [
+          "A style attribute under the default CSP is emitted and then ignored by the browser. Development now says so, naming the element and the fix, and stays silent if your policy permits inline styles.",
+          "Islands that were built but never registered rendered as inert markup — correct-looking HTML shipping no JavaScript. The server now says so at boot rather than serving pages that look right and do nothing.",
+        ],
+      },
+
       { kind: "h2", text: "Also in 0.1.4" },
       {
         kind: "list",
         items: [
           "Path matching no longer goes through Bun.FileSystemRouter. That removes the workaround for a Bun 1.3.14 native panic on any path containing %, which made GET /%41 a remote denial of service — an abort, not a catchable exception.",
           "Route patterns are matched from a table rather than the filesystem, so dev and production resolve paths through exactly the same code.",
+          "A route's default export may be async, and the type now says so. It always worked — the server awaits that call — but Component was declared synchronous, so a database query in a route worked at runtime and failed to typecheck. PageComponent is the route-level type; Component stays synchronous because islands and nested components genuinely are.",
+          "The build reports each island's chunk size. JavaScript being opt-in is only checkable if the cost is shown where it is incurred.",
         ],
       },
 
@@ -1864,6 +2093,10 @@ if (!global.__db) {
       {
         kind: "p",
         text: "A route's default export may be async. The server awaits that one call before rendering starts, which is what lets a page load its own data with no loader API in between.",
+      },
+      {
+        kind: "quote",
+        text: "This works on 0.1.3, but the type does not admit it: Component was declared synchronous and used for routes too, so an async route ran correctly and failed to typecheck. 0.1.4 adds PageComponent for the route-level case. On 0.1.3, an `as never` on the export is the workaround.",
       },
       {
         kind: "code",
