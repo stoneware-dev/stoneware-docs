@@ -1320,11 +1320,12 @@ islands/Counter.tsx:3:10
           "The Bun runtime. Not Node, not a V8 isolate — the framework is built on Bun.serve, Bun.CSRF and Bun.escapeHTML.",
           ".stoneware/ from the build: the server bundle, the island manifest and the island chunks.",
           "public/, if the app serves static assets.",
+          "routes/ and islands/, on disk, at request time — on 0.1.3 and earlier. Path matching reads the filenames on every request, and the island registry is rebuilt from the sources at boot.",
         ],
       },
       {
         kind: "quote",
-        text: "Since 0.1.3, routes/ and islands/ are not on that list. A build inlines every route and island into the bundle and writes a pattern table beside it, so the source tree is a build-time input rather than a runtime dependency.",
+        text: "From 0.1.4 — on main, not yet published — routes/ and islands/ leave that list. A build inlines every route and island into the bundle and writes a pattern table beside it, so the source tree becomes a build-time input rather than a runtime dependency. On 0.1.3 and earlier, both directories must be present at request time.",
       },
       {
         kind: "p",
@@ -1389,19 +1390,21 @@ bun server.ts        # serves`,
       {
         kind: "figure",
         label: "the runtime decides, not the framework",
-        text: `                      runs Bun?
-  VPS / Docker            yes        works as-is
-  Fly.io                  yes        works as-is
-  Railway / Render        yes        works as-is
-  Vercel                  yes        stoneware build --target vercel
+        text: `                      runs Bun?   ships whole dir?
+  VPS / Docker            yes           yes        works as-is
+  Fly.io                  yes           yes        works as-is
+  Railway / Render        yes           yes        works as-is
 
-  Netlify / Cloudflare     no        wrong runtime
-  GitHub Pages, any CDN    no        no runtime at all
-                                     -> stoneware export`,
+  Vercel                  yes           no         0.1.4:
+                                                   build --target vercel
+
+  Netlify / Cloudflare     no           -          wrong runtime
+  GitHub Pages, any CDN    no           -          no runtime at all
+                                                   -> stoneware export`,
       },
       {
         kind: "p",
-        text: "The runtime is now the only question the table asks. Whether a platform ships the whole directory or bundles a function used to matter a great deal, because the server read routes/ on every request; a relocatable build removes that distinction. Cloudflare Workers run V8 isolates and Netlify Functions run Node, so neither can host a Stoneware server — for those, prerender the site instead.",
+        text: "Anywhere you can run bun server.ts against the project directory, nothing extra is required — the directory is simply there. The second column is what a bundling platform makes hard, and it is the column 0.1.4 removes: once the build is relocatable, only the runtime question is left. Cloudflare Workers run V8 isolates and Netlify Functions run Node, so neither can host a Stoneware server — for those, prerender the site instead.",
       },
 
       { kind: "h2", text: "Static export" },
@@ -1465,6 +1468,10 @@ bun server.ts        # serves`,
         text: "stoneware build --target vercel writes both pieces the preset looks for: a root server.js that imports the built bundle, and a vercel.json if the project has none. An existing vercel.json is never rewritten — it is hand-maintained configuration that may carry regions, headers or redirects — so anything missing from it is reported instead.",
       },
       {
+        kind: "quote",
+        text: "--target vercel arrives in 0.1.4, which is on main and not yet published. On 0.1.3 you can write the same two files by hand — they are shown below — but the bundle they point at still records its build path and rescans routes/, which is the reason the deploy 404s. The target and the fix ship together.",
+      },
+      {
         kind: "code",
         language: "sh",
         label: "terminal",
@@ -1512,7 +1519,7 @@ bun server.ts        # serves`,
       },
       {
         kind: "quote",
-        text: "Before 0.1.3 the usual failure was different and quieter: the bundle recorded the absolute path it was built at and rescanned routes/ on every request, so a function that started perfectly well answered 404 for every path. If you hit that, upgrade rather than reaching for the /api model.",
+        text: "On 0.1.3 and earlier the usual failure is different and quieter: the bundle records the absolute path it was built at and rescans routes/ on every request, so a function that starts perfectly well answers 404 for every path. That is fixed in 0.1.4 rather than worked around — if you hit it today, the /api model with functions.includeFiles is the available answer.",
       },
 
       { kind: "h2", text: "When a serverless deploy crashes" },
@@ -1543,11 +1550,114 @@ if (!existsSync(resolve(process.cwd(), ".stoneware/islands.json"))) {
   {
     slug: "whats-new",
     title: "What's new",
-    summary: "0.1.3 and 0.1.2 — what changed, what it replaces, and why.",
+    summary: "0.1.4 — what is coming, and why each change exists. Not yet published.",
     blocks: [
       {
-        kind: "h2", text: "0.1.3",
+        kind: "h2", text: "0.1.4 — in progress, not yet released",
       },
+      {
+        kind: "quote",
+        text: "Everything in this section is on main and covered by tests, but it is not on npm. `bun add stoneware` still gets you 0.1.3. Read it as what is coming, not as what you can install today.",
+      },
+      {
+        kind: "p",
+        text: "One theme: a build should run somewhere other than the machine that produced it. That sounds obvious, and it was not true — which is why deploying to a platform that bundles your app failed in a way that looked like a routing bug.",
+      },
+
+      { kind: "h2", text: "Builds that run where they were not built" },
+      {
+        kind: "figure",
+        label: "the same bundle, moved to another directory",
+        text: `  before                          now
+  ──────────────────────────      ──────────────────────────
+  the bundle recorded the         the root is derived from
+  absolute path it was built      the bundle's own location
+  at, and rescanned routes/
+  on every request                a route manifest ships
+                                  inside it, so routes/ is a
+  → 404 for every path            build input, not a runtime
+    somewhere else                  dependency`,
+      },
+      {
+        kind: "p",
+        text: "A production build inlined every route and island, then matched paths by scanning routes/ on disk anyway — and hardcoded the build machine's project root. Both are invisible locally, because the directory you build in is the directory you serve from. Move the output and every request 404s while the process reports a clean start.",
+      },
+      {
+        kind: "p",
+        text: "This is what made Vercel fail. It is not Vercel-specific: a container that builds in one path and runs in another, a CI artifact handed to a deploy step, and a serverless function unpacked into a scratch directory all hit it.",
+      },
+      {
+        kind: "quote",
+        text: "A second bug fell out of testing the first. With islands/ absent, the island registry was rebuilt by rescanning it, so every island quietly degraded to plain markup — no hydration marker, no chunk, nothing logged. Pages looked fine and shipped no JavaScript. An empty registry is indistinguishable from a page that genuinely has no islands, which is what kept it silent.",
+      },
+
+      { kind: "h2", text: "Deploying to Vercel" },
+      {
+        kind: "figure",
+        label: "stoneware build --target vercel",
+        text: `  server.js      import "./.stoneware/server.js";
+                 the Bun preset detects the Bun.serve()
+                 call inside it and routes every request
+
+  vercel.json    framework + bunVersion + buildCommand
+                 written only if you do not have one`,
+      },
+      {
+        kind: "p",
+        text: "Vercel runs Bun as a first-class function runtime, and its Bun framework preset wants exactly one thing: a root entrypoint that calls Bun.serve() at module startup. A built Stoneware server already does that, so the target emits a re-export rather than an adapter — there is no request translation and nothing to keep in sync with the pipeline. See deploying.",
+      },
+      {
+        kind: "p",
+        text: "An existing vercel.json is never rewritten. It is hand-maintained configuration that may carry regions, headers or redirects, so anything missing is reported instead — including a functions block, which fails the preset build outright because those patterns only match an api/ directory.",
+      },
+
+      { kind: "h2", text: "Dev no longer shares a port by accident" },
+      {
+        kind: "figure",
+        label: "one project on dev, another on start, both on :3000",
+        text: `  before                          now
+  ──────────────────────────      ──────────────────────────
+  dev binds ::1, start binds      dev asks whether anything
+  0.0.0.0 — different sockets,    answers on the port first,
+  so neither errors               across both loopback
+                                  families, and steps past
+  both report success; who
+  answers depends on the          start still fails loudly:
+  client's IPv4/IPv6 order        it must have its own port`,
+      },
+      {
+        kind: "p",
+        text: "0.1.3 already walked to the next free port when a bind failed. This is the case where nothing fails: two servers hold the same port on different addresses, both log success, and requests land on whichever one the client's address preference picks. Asking whether the port answers catches it; asking whether the bind failed cannot.",
+      },
+
+      { kind: "h2", text: "Also in 0.1.4" },
+      {
+        kind: "list",
+        items: [
+          "Path matching no longer goes through Bun.FileSystemRouter. That removes the workaround for a Bun 1.3.14 native panic on any path containing %, which made GET /%41 a remote denial of service — an abort, not a catchable exception.",
+          "Route patterns are matched from a table rather than the filesystem, so dev and production resolve paths through exactly the same code.",
+        ],
+      },
+
+      { kind: "h2", text: "Earlier versions" },
+      {
+        kind: "p",
+        text: "0.1.3 and 0.1.2 have moved to past releases, so this page stays what its name says: only what is not out yet.",
+      },
+    ],
+  },
+
+  {
+    slug: "past-releases",
+    title: "Past releases",
+    summary: "What shipped in 0.1.3 and 0.1.2, and what each change replaced.",
+    blocks: [
+      {
+        kind: "p",
+        text: "Released versions, newest first. Everything here is on npm and installable. For what is coming next, see what's new.",
+      },
+
+      { kind: "h2", text: "0.1.3" },
       {
         kind: "p",
         text: "Three bugs found by running this site in production, and three features found by wanting to build something real with it. Each entry below says what you had to do before, because that is the only honest way to judge whether an addition earns its place.",
@@ -1639,7 +1749,11 @@ if (!existsSync(resolve(process.cwd(), ".stoneware/islands.json"))) {
       },
       {
         kind: "quote",
-        text: "This site runs on the published package rather than a local checkout, so everything documented here is behaviour you can install — not behaviour that only exists in the repository.",
+        text: "This site runs on the published package rather than a local checkout, so everything on this page is behaviour you can install — not behaviour that only exists in the repository. That is also why unreleased work lives on what's new instead of here.",
+      },
+      {
+        kind: "p",
+        text: "Still on this version? The deploying page marks which behaviour is 0.1.3 and which arrives in 0.1.4, so nothing here needs cross-referencing against a changelog.",
       },
     ],
   },
@@ -1891,7 +2005,7 @@ export const DOC_GROUPS: DocGroup[] = [
   },
   {
     label: "Releases",
-    slugs: ["whats-new"],
+    slugs: ["whats-new", "past-releases"],
   },
 ];
 
