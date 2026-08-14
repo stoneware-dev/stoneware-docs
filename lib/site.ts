@@ -6,10 +6,10 @@
  * that links to it.
  */
 
-export const REPO_URL = "https://github.com/RANJEETJ06/Stoneware";
+export const REPO_URL = "https://github.com/stoneware-dev/stoneware-core";
 
 /** Shown where the link needs to read as a location rather than a label. */
-export const REPO_SLUG = "Stoneware";
+export const REPO_SLUG = "stoneware-dev/stoneware-core";
 
 export const REPO_ISSUES_URL = `${REPO_URL}/issues`;
 
