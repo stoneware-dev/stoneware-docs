@@ -1,0 +1,6 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "bun",
+  "bunVersion": "1.x",
+  "buildCommand": "bun node_modules/stoneware/bin/stoneware.mjs build --target vercel"
+}
