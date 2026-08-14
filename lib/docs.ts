@@ -1057,7 +1057,7 @@ routes/index.css        lib/Card.css        islands/Counter.css
       },
       {
         kind: "p",
-        text: "From 0.1.4 development warns when it sees one, naming the element and the fix. It stays silent if you have widened the policy or set csp: false, because then nothing is being blocked. The attribute is still emitted either way — a diagnostic that rewrote your markup would be worse than the problem.",
+        text: "Development warns when it sees one, naming the element and the fix. It stays silent if you have widened the policy or set csp: false, because then nothing is being blocked. The attribute is still emitted either way — a diagnostic that rewrote your markup would be worse than the problem.",
       },
       {
         kind: "quote",
@@ -1182,7 +1182,7 @@ export async function POST({ request }: ActionContext) {
       },
       {
         kind: "p",
-        text: "From 0.1.4 the renderer says so rather than leaving you to find it. The attribute is still emitted — a warning must not change output, and the project may be about to widen its policy — but development prints a line naming the element, and stays quiet if the policy allows unsafe-inline or sets no style-src at all.",
+        text: "Since 0.1.4 the renderer says so rather than leaving you to find it. The attribute is still emitted — a warning must not change output, and the project may be about to widen its policy — but development prints a line naming the element, and stays quiet if the policy allows unsafe-inline or sets no style-src at all.",
       },
       {
         kind: "code",
@@ -1271,15 +1271,11 @@ stoneware build    # production build
 stoneware start    # run the production server bundle
 stoneware export   # prerender every page to static HTML
 
-stoneware preview  # serve an export the way a static host would   (0.1.4)
-stoneware routes   # print the route table, in match order         (0.1.4)
-stoneware doctor   # check the project setup                       (0.1.4)
+stoneware preview  # serve an export the way a static host would
+stoneware routes   # print the route table, in match order
+stoneware doctor   # check the project setup
 
-stoneware --version   # both versions, for a bug report            (0.1.4)`,
-      },
-      {
-        kind: "quote",
-        text: "The four marked 0.1.4 are on main and not yet published. On 0.1.3 the CLI has dev, build, start and export only.",
+stoneware --version   # both versions, for a bug report`,
       },
       { kind: "h2", text: "Development" },
       {
@@ -1293,7 +1289,7 @@ stoneware --version   # both versions, for a bug report            (0.1.4)`,
       },
       {
         kind: "p",
-        text: "From 0.1.4 dev asks whether anything is already answering on the port before it binds, rather than only reacting to a failed bind. The case that needed it: dev binds localhost and start binds 0.0.0.0, which are different sockets, so two projects could each hold :3000 with neither seeing an error — and requests went to whichever one the client's IPv4/IPv6 preference picked.",
+        text: "Dev also asks whether anything is already answering on the port before it binds, rather than only reacting to a failed bind. The case that needed it: dev binds localhost and start binds 0.0.0.0, which are different sockets, so two projects could each hold :3000 with neither seeing an error — and requests went to whichever one the client's IPv4/IPv6 preference picked.",
       },
       {
         kind: "code",
@@ -1369,7 +1365,7 @@ islands/Counter.tsx:3:10
       },
       {
         kind: "p",
-        text: "Sizes are per island from 0.1.4. JavaScript being opt-in is only a claim you can check if the cost is shown next to the name of the thing that caused it.",
+        text: "Sizes are reported per island. JavaScript being opt-in is only a claim you can check if the cost is shown next to the name of the thing that caused it.",
       },
 
       { kind: "h2", text: "Seeing the route table" },
@@ -1504,7 +1500,7 @@ islands/Counter.tsx:3:10
       },
       {
         kind: "quote",
-        text: "From 0.1.4 — on main, not yet published — routes/ and islands/ leave that list. A build inlines every route and island into the bundle and writes a pattern table beside it, so the source tree becomes a build-time input rather than a runtime dependency. On 0.1.3 and earlier, both directories must be present at request time.",
+        text: "Since 0.1.4, routes/ and islands/ are not on that list. A build inlines every route and island into the bundle and writes a pattern table beside it, so the source tree becomes a build-time input rather than a runtime dependency. On 0.1.3 and earlier, both directories must be present at request time.",
       },
       {
         kind: "p",
@@ -1574,8 +1570,7 @@ bun server.ts        # serves`,
   Fly.io                  yes           yes        works as-is
   Railway / Render        yes           yes        works as-is
 
-  Vercel                  yes           no         0.1.4:
-                                                   build --target vercel
+  Vercel                  yes           no         build --target vercel
 
   Netlify / Cloudflare     no           -          wrong runtime
   GitHub Pages, any CDN    no           -          no runtime at all
@@ -1583,7 +1578,7 @@ bun server.ts        # serves`,
       },
       {
         kind: "p",
-        text: "Anywhere you can run bun server.ts against the project directory, nothing extra is required — the directory is simply there. The second column is what a bundling platform makes hard, and it is the column 0.1.4 removes: once the build is relocatable, only the runtime question is left. Cloudflare Workers run V8 isolates and Netlify Functions run Node, so neither can host a Stoneware server — for those, prerender the site instead.",
+        text: "Anywhere you can run bun server.ts against the project directory, nothing extra is required — the directory is simply there. The second column is what a bundling platform makes hard, and it is the column 0.1.4 removed: once the build is relocatable, only the runtime question is left. Cloudflare Workers run V8 isolates and Netlify Functions run Node, so neither can host a Stoneware server — for those, prerender the site instead.",
       },
 
       { kind: "h2", text: "Static export" },
@@ -1648,7 +1643,7 @@ bun server.ts        # serves`,
       },
       {
         kind: "quote",
-        text: "--target vercel arrives in 0.1.4, which is on main and not yet published. On 0.1.3 you can write the same two files by hand — they are shown below — but the bundle they point at still records its build path and rescans routes/, which is the reason the deploy 404s. The target and the fix ship together.",
+        text: "On 0.1.3 and earlier you could write these two files by hand and the deploy still 404'd: the bundle recorded its build path and rescanned routes/, so the function started and matched nothing. The target and the fix shipped together in 0.1.4, which is why upgrading is the answer rather than more configuration.",
       },
       {
         kind: "code",
@@ -1698,7 +1693,7 @@ bun server.ts        # serves`,
       },
       {
         kind: "quote",
-        text: "On 0.1.3 and earlier the usual failure is different and quieter: the bundle records the absolute path it was built at and rescans routes/ on every request, so a function that starts perfectly well answers 404 for every path. That is fixed in 0.1.4 rather than worked around — if you hit it today, the /api model with functions.includeFiles is the available answer.",
+        text: "On 0.1.3 and earlier the usual failure is different and quieter: the bundle records the absolute path it was built at and rescans routes/ on every request, so a function that starts perfectly well answers 404 for every path. Fixed in 0.1.4 rather than worked around, so upgrading is the answer rather than the /api model.",
       },
 
       { kind: "h2", text: "When a serverless deploy crashes" },
@@ -1729,18 +1724,14 @@ if (!existsSync(resolve(process.cwd(), ".stoneware/islands.json"))) {
   {
     slug: "whats-new",
     title: "What's new",
-    summary: "0.1.4 — what is coming, and why each change exists. Not yet published.",
+    summary: "0.1.4 — what changed, what it replaces, and why.",
     blocks: [
       {
-        kind: "h2", text: "0.1.4 — in progress, not yet released",
-      },
-      {
-        kind: "quote",
-        text: "Everything in this section is on main and covered by tests, but it is not on npm. `bun add stoneware` still gets you 0.1.3. Read it as what is coming, not as what you can install today.",
+        kind: "h2", text: "0.1.4",
       },
       {
         kind: "p",
-        text: "One theme: a build should run somewhere other than the machine that produced it. That sounds obvious, and it was not true — which is why deploying to a platform that bundles your app failed in a way that looked like a routing bug.",
+        text: "Published 15 August 2026. One theme: a build should run somewhere other than the machine that produced it. That sounds obvious, and it was not true — which is why deploying to a platform that bundles your app failed in a way that looked like a routing bug.",
       },
 
       { kind: "h2", text: "Builds that run where they were not built" },
@@ -1982,7 +1973,7 @@ if (!existsSync(resolve(process.cwd(), ".stoneware/islands.json"))) {
       },
       {
         kind: "p",
-        text: "Still on this version? The deploying page marks which behaviour is 0.1.3 and which arrives in 0.1.4, so nothing here needs cross-referencing against a changelog.",
+        text: "Still on one of these? The deploying and CLI pages mark which behaviour belongs to which version, so nothing here needs cross-referencing against a changelog.",
       },
     ],
   },
@@ -2096,7 +2087,7 @@ if (!global.__db) {
       },
       {
         kind: "quote",
-        text: "This works on 0.1.3, but the type does not admit it: Component was declared synchronous and used for routes too, so an async route ran correctly and failed to typecheck. 0.1.4 adds PageComponent for the route-level case. On 0.1.3, an `as never` on the export is the workaround.",
+        text: "On 0.1.3 and earlier this ran correctly and failed to typecheck: Component was declared synchronous and used for routes too. 0.1.4 added PageComponent for the route-level case, so an async route now typechecks as written.",
       },
       {
         kind: "code",
