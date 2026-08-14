@@ -1759,6 +1759,212 @@ if (!existsSync(resolve(process.cwd(), ".stoneware/islands.json"))) {
   },
 
   {
+    slug: "database",
+    title: "Databases",
+    summary: "Where db.ts goes, where queries run, and the one place they must never.",
+    blocks: [
+      {
+        kind: "p",
+        text: "Stoneware has no data layer, deliberately. There is no ORM to configure, no query builder to learn, and no loader API sitting between your route and your data. A Stoneware app is a Bun process, so you use whatever a Bun process uses — and Bun already ships two databases.",
+      },
+      {
+        kind: "list",
+        items: [
+          "bun:sqlite — built in, no install, no driver. Good for content sites, and for anything single-node.",
+          "Bun.sql — Postgres, built in.",
+          "Anything else works too: Drizzle, Prisma, pg, mysql2. Nothing about them is special-cased, because nothing has to be.",
+        ],
+      },
+
+      { kind: "h2", text: "Where the file goes" },
+      {
+        kind: "figure",
+        label: "lib/ is for behavior, not markup",
+        text: `my-site/
+├── routes/          request handling and pages
+├── islands/         client JavaScript  <- never database code
+├── lib/
+│   ├── db.ts        the connection, opened once
+│   └── posts.ts     the queries, as plain functions
+└── public/`,
+      },
+      {
+        kind: "p",
+        text: "lib/ is where non-UI logic lives. Put the connection in lib/db.ts and the queries beside it in lib/posts.ts — plain functions taking arguments and returning rows. Routes then read as markup with a function call in them, and the queries stay testable without a request.",
+      },
+
+      { kind: "h2", text: "The connection" },
+      {
+        kind: "code",
+        label: "lib/db.ts",
+        text: `import { Database } from "bun:sqlite";
+
+// Module scope, so this runs once per process rather than once per request.
+export const db = new Database("data.sqlite", { create: true });
+
+db.run("pragma journal_mode = WAL");`,
+      },
+      {
+        kind: "code",
+        label: "lib/posts.ts",
+        text: `import { db } from "./db.ts";
+
+export interface Post {
+  slug: string;
+  title: string;
+  body: string;
+}
+
+const bySlug = db.query("select * from posts where slug = ?");
+
+export function getPost(slug: string): Post | null {
+  return bySlug.get(slug) as Post | null;
+}`,
+      },
+      {
+        kind: "quote",
+        text: "Prepared statements at module scope, like the connection: db.query() compiles the SQL once, and re-preparing it on every request is the most common way a SQLite-backed page ends up slower than it should be.",
+      },
+
+      { kind: "h2", text: "One thing that will bite you in development" },
+      {
+        kind: "figure",
+        label: "editing lib/db.ts under `stoneware dev`",
+        text: `  [lib] connection opened: zi7s0x
+  [entry] using zi7s0x
+
+  ... you save lib/db.ts ...
+
+  [lib] connection opened: emk9cd     <- a second one
+  [entry] using emk9cd                   the first is still open`,
+      },
+      {
+        kind: "p",
+        text: "The dev server runs under bun --hot, which re-evaluates a module when you edit it. Module scope means once per process, and a hot reload is not a new process — so editing lib/db.ts opens another connection and leaks the previous one. With SQLite you may only notice a file lock; with a Postgres pool you will exhaust it after enough saves.",
+      },
+      {
+        kind: "code",
+        label: "lib/db.ts — surviving hot reload",
+        text: `import { Database } from "bun:sqlite";
+
+// Hung off globalThis so a hot reload finds the existing connection instead of
+// opening a second one. Production evaluates this module once and never
+// re-enters it, so the cache is only ever load-bearing in development.
+const global = globalThis as { __db?: Database };
+
+export const db = global.__db ?? new Database("data.sqlite", { create: true });
+
+if (!global.__db) {
+  db.run("pragma journal_mode = WAL");
+  global.__db = db;
+}`,
+      },
+
+      { kind: "h2", text: "Where queries run" },
+      {
+        kind: "p",
+        text: "A route's default export may be async. The server awaits that one call before rendering starts, which is what lets a page load its own data with no loader API in between.",
+      },
+      {
+        kind: "code",
+        label: "routes/blog/[slug].tsx",
+        text: `import { notFound } from "stoneware";
+import type { PageProps } from "stoneware";
+import { getPost } from "../../lib/posts.ts";
+
+export default async function Post({ params }: PageProps) {
+  const post = getPost(params.slug);
+
+  // A [slug] route matches any slug, so a miss has to say so explicitly -
+  // otherwise it renders not-found markup with a 200 and Google indexes it.
+  if (!post) notFound();
+
+  return (
+    <article>
+      <h1>{post.title}</h1>
+      <p>{post.body}</p>
+    </article>
+  );
+}`,
+      },
+      {
+        kind: "list",
+        items: [
+          "Route pages — async default export, as above.",
+          "Server actions — routes/api/*.ts handlers, for writes.",
+          "Middleware — routes/_middleware.ts, for a session lookup that every route needs.",
+          "lib/ — the queries themselves, called from any of the above.",
+        ],
+      },
+      {
+        kind: "quote",
+        text: "Only the route's own default export may be async. Rendering is a single synchronous pass to a string, so a component nested inside JSX has no point at which a promise could be resolved — it throws with a message saying so rather than rendering [object Promise]. Fetch in the route, pass the result down as props.",
+      },
+
+      { kind: "h2", text: "Never in islands/" },
+      {
+        kind: "figure",
+        label: "the boundary is the directory",
+        text: `  routes/    server     database code belongs here
+  lib/       server     and here
+  islands/   browser    and never here`,
+      },
+      {
+        kind: "p",
+        text: "Anything under islands/ is bundled for the browser. A database import there is not a security hole so much as a broken build — but the instinct it comes from is worth naming: fetch on the server, hand the island the rows it needs as props.",
+      },
+      {
+        kind: "quote",
+        text: "Bun does not inline process.env for a browser target, so a secret an island reads evaluates to undefined rather than being baked into the chunk your visitors download. Vite and webpack-with-DefinePlugin do bake it in. A test asserts this, because it is an accidental property of the bundler rather than something the framework asks for.",
+      },
+
+      { kind: "h2", text: "Writes go through a server action" },
+      {
+        kind: "code",
+        label: "routes/api/comment.ts",
+        text: `import type { ActionContext } from "stoneware";
+import { addComment } from "../../lib/posts.ts";
+
+export async function POST({ request }: ActionContext) {
+  // The CSRF token was already verified before this ran - the framework does it
+  // for every non-GET request, and there is no per-route opt-in.
+  const form = await request.formData();
+  addComment(String(form.get("slug")), String(form.get("body")));
+
+  return new Response(null, { status: 303, headers: { Location: "/thanks" } });
+}`,
+      },
+      {
+        kind: "p",
+        text: "Pair it with the Form helper, which injects the CSRF field for you. See server actions.",
+      },
+
+      { kind: "h2", text: "Credentials" },
+      {
+        kind: "p",
+        text: "Bun loads .env natively, so a connection string belongs there and nowhere else. The same file already holds STONEWARE_CSRF_SECRET, which production refuses to start without.",
+      },
+      {
+        kind: "code",
+        language: "sh",
+        label: ".env",
+        text: `DATABASE_URL=postgres://user:pw@host/db
+STONEWARE_CSRF_SECRET=a-long-random-string`,
+      },
+
+      { kind: "h2", text: "If you export the site" },
+      {
+        kind: "p",
+        text: "stoneware export runs every page once at build time and writes the HTML, so database-backed pages capture a snapshot rather than staying live. That is exactly right for a blog rebuilt on publish, and wrong for anything that changes between deploys — that needs stoneware start.",
+      },
+      {
+        kind: "quote",
+        text: "Export also skips server actions entirely, so the write path above has no static equivalent. A fully static site is one with no mutating requests; if you need the form, you need a running server.",
+      },
+    ],
+  },
+
+  {
     slug: "middleware",
     title: "Middleware and APIs",
     summary: "One file that runs on every request, and what changed for API routes.",
@@ -1989,7 +2195,7 @@ export const DOC_GROUPS: DocGroup[] = [
   },
   {
     label: "Server",
-    slugs: ["server-actions", "middleware"],
+    slugs: ["server-actions", "middleware", "database"],
   },
   {
     label: "Security",
