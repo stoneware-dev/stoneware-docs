@@ -25,7 +25,7 @@ export const REPO_ISSUES_URL = `${REPO_URL}/issues`;
  * does not do yet. A constant has no such ambiguity: there is exactly one
  * public origin, and this is it.
  */
-export const SITE_URL = "https://stoneware-docs.onrender.com";
+export const SITE_URL = "https://stoneware-docs-1lob.onrender.com";
 
 /** Absolute URL for a path on this site. */
 export function siteURL(path: string): string {
