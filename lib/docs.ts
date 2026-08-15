@@ -1899,7 +1899,7 @@ if (!existsSync(resolve(process.cwd(), ".stoneware/islands.json"))) {
       { kind: "h2", text: "0.1.6" },
       {
         kind: "p",
-        text: "Not published yet. npm still installs 0.1.5, which is what this site runs on. Everything below is in the repository with tests behind it, and this page becomes the release note when it ships.",
+        text: "Published 15 August 2026. Two features and three fixes, and the fixes are the reason it followed 0.1.5 so quickly: one of them is the third instance of a bug that only ever shows up on a deploy, and one had been breaking the dev server since the dev server existed.",
       },
 
       { kind: "h2", text: "One widget can fail without taking the page" },
@@ -2347,7 +2347,7 @@ export default defineConfig({
     blocks: [
       {
         kind: "p",
-        text: "The older released versions, newest first. Everything here is on npm and installable. 0.1.5 and 0.1.4 have their own page, and what is coming next is on what's new.",
+        text: "The older released versions, newest first. Everything here is on npm and installable. 0.1.5 and 0.1.4 have their own page, and the current release is on what's new.",
       },
 
       { kind: "h2", text: "0.1.3" },
@@ -2442,7 +2442,7 @@ export default defineConfig({
       },
       {
         kind: "quote",
-        text: "This site runs on the published package rather than a local checkout, so everything on this page is behaviour you can install — not behaviour that only exists in the repository. That is also why unreleased work lives on what's new instead of here.",
+        text: "This site runs on the published package rather than a local checkout, so everything on this page is behaviour you can install — not behaviour that only exists in the repository.",
       },
       {
         kind: "p",
