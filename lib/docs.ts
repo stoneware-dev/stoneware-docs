@@ -64,7 +64,7 @@ export const DOCS: DocPage[] = [
       {
         kind: "figure",
         label: "measured on this site's own production build, gzipped",
-        text: `  Whole client runtime (signals + hydrate + DOM)     ~3.2 KB
+        text: `  Whole client runtime (signals + hydrate + DOM)     ~3.4 KB
   One island, e.g. the counter on the home page       ~0.2 KB
   A page with no islands                                   0 B
 
@@ -649,7 +649,7 @@ export const subscriberCount = signal(1284);`,
         label: "a page whose islands are all client:visible",
         text: `  on load                          on scroll
   ─────────────────────────        ─────────────────────────
-  scheduler        ~1 KB           runtime          ~3.2 KB
+  scheduler        ~1 KB           runtime          ~3.4 KB
                                    Chart chunk      ~1 KB
   ─────────────────────────        ─────────────────────────
   ~1 KB gzip                       fetched only if reached`,
@@ -1492,6 +1492,33 @@ islands/Counter.tsx:3:10
         text: "Sizes are reported per island. JavaScript being opt-in is only a claim you can check if the cost is shown next to the name of the thing that caused it.",
       },
 
+      { kind: "h2", text: "What gets minified, and what deliberately does not" },
+      {
+        kind: "figure",
+        label: "production output",
+        text: `                 minified          source maps
+  ──────────────────────────────────────────────────
+  island chunks  fully             none
+  stylesheet     fully             —
+  server bundle  whitespace only   emitted and linked`,
+      },
+      {
+        kind: "p",
+        text: "The two are treated differently because the questions are different. An island chunk is downloaded by every visitor and never read from a stack trace, so every byte counts and identifiers do not. The server bundle is downloaded by nobody and read from stack traces whenever something breaks in production, so the reverse holds.",
+      },
+      {
+        kind: "figure",
+        label: "the same throwing route, built four ways",
+        text: `  none          270 KB   at Boom (routes/boom.tsx:3:14)
+  whitespace    221 KB   at Boom (routes/boom.tsx:3:14)
+  + syntax      213 KB   at Boom (routes/boom.tsx:2:22)
+  + identifiers 199 KB   at e8   (routes/boom.tsx:2:22)`,
+      },
+      {
+        kind: "p",
+        text: "Stripping whitespace is free: 18% off with the frame, line, column and error text all identical to an unminified build. Past that, syntax minification constant-folds — which moved the reported line and rewrote the message from value.missingProperty to null.missingProperty, pointing at the wrong thing — and identifier mangling turns the frame into e8. Source maps recover neither, so the last 10% is not taken.",
+      },
+
       { kind: "h2", text: "Seeing the route table" },
       {
         kind: "p",
@@ -2100,6 +2127,7 @@ export default defineConfig({
           "Durations are reported as a float, not a rounded integer. A static render is routinely faster than a millisecond, and rounding would print 0ms for the path the framework exists to make fast.",
           "formatEvent is exported, so you can keep the one-line format while sending it somewhere other than the console.",
           "stoneware export no longer fires your observer. An export prerenders by fetching through the ordinary pipeline, but nobody is visiting — without this, every build sent a burst of synthetic traffic indistinguishable from the real thing.",
+          "The server bundle has its whitespace stripped: 18% smaller, at no build-time cost. Island chunks and the stylesheet were already minified; the server bundle was the one output that was not. It stops there rather than going further, because identifier mangling would turn every production stack frame into e8 — see the CLI page for the measurements.",
         ],
       },
 

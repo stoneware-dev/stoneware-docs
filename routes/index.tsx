@@ -30,7 +30,7 @@ export function head(_props: PageProps) {
       name: "Stoneware",
       applicationCategory: "DeveloperApplication",
       operatingSystem: "Cross-platform",
-      softwareVersion: "0.1.3",
+      softwareVersion: "0.1.6",
       url: SITE_URL,
       offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
     },
@@ -116,7 +116,7 @@ export default function Home({ request }: PageProps) {
       theme={themeFromRequest(request)}
     >
       <section class="shell hero">
-        <p class="eyebrow eyebrow--glaze rise">Bun-native · server-first · v0.1.3</p>
+        <p class="eyebrow eyebrow--glaze rise">Bun-native · server-first · v0.1.6</p>
         <h1 class="hero__title rise">
           Shape your web application at <em>build/server time</em>
         </h1>
