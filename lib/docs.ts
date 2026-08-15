@@ -999,6 +999,130 @@ export default function Post({ params }: PageProps) {
         kind: "quote",
         text: "stoneware export writes the 404 page to dist/404.html — the file Cloudflare Pages, Netlify and GitHub Pages each serve for an unmatched path. A static export gets your error page too, not the host's default one.",
       },
+      {
+        kind: "p",
+        text: "An error page is the response when a page could not be rendered at all. For the narrower case — one widget failed and the article around it is fine — see error boundaries.",
+      },
+    ],
+  },
+
+  {
+    slug: "error-boundaries",
+    title: "Error boundaries",
+    summary: "Lose one subtree instead of the whole page, without losing the error.",
+    blocks: [
+      {
+        kind: "p",
+        text: "Without a boundary, a component that throws anywhere in a page loses the page: the request unwinds to routes/_500.tsx and a malformed row in one widget costs the article around it. On a site whose pages are mostly content, that is the wrong blast radius.",
+      },
+      {
+        kind: "figure",
+        label: "one widget throws",
+        text: `  without a boundary              with one
+  ──────────────────────────      ──────────────────────────
+  500, the whole page gone        200, the page intact
+
+  the reader gets an error        the reader gets the
+  page instead of the article     article and a short note
+                                  where the widget was`,
+      },
+      {
+        kind: "code",
+        language: "tsx",
+        label: "routes/product/[id].tsx",
+        text: `import { Boundary } from "stoneware";
+
+export default async function Product({ params }: PageProps) {
+  const product = await getProduct(params.id);
+  if (!product) notFound();
+
+  return (
+    <article>
+      <h1>{product.name}</h1>
+      <p>{product.description}</p>
+
+      <Boundary fallback={<p>Reviews are unavailable right now.</p>}>
+        <Reviews productId={product.id} />
+      </Boundary>
+    </article>
+  );
+}`,
+      },
+      {
+        kind: "p",
+        text: "That is the whole API. No registration, no error state to hold, nothing to reset. Rendering is a single synchronous walk to a string, so catching is a try around one subtree — which is also why there is no client-side equivalent and no second pass.",
+      },
+
+      { kind: "h2", text: "notFound() is not caught" },
+      {
+        kind: "p",
+        text: "notFound() is a routing decision travelling as an exception, not a failure. A boundary lets it through, so it still renders your _404 page with a 404 status even when thrown from deep inside a boundary's children.",
+      },
+      {
+        kind: "quote",
+        text: "If a boundary caught it, a missing post would render the fallback with a 200 — a soft 404, which search engines index and which tells a client the request succeeded. That is the bug 0.1.3 removed, and a boundary must not put it back.",
+      },
+
+      { kind: "h2", text: "The error is never lost" },
+      {
+        kind: "p",
+        text: "A boundary that swallows errors quietly is worse than no boundary: the page looks fine and the failure is invisible. So a caught error goes two places, and neither is optional.",
+      },
+      {
+        kind: "figure",
+        label: "one widget failing on every request",
+        text: `  console      the error and its stack, always —
+               with no observe hook configured this
+               is the only thing between a caught
+               error and complete silence
+
+  observe      event.caught carries the thrown values
+               on the request they belong to, so a
+               reporting backend gets the real error
+               rather than a formatted line`,
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "the request line, with the built-in observer",
+        text: `[stoneware] 200 GET  /product/42  15ms  /product/[id]  caught=1`,
+      },
+      {
+        kind: "p",
+        text: "The status is 200 because the request genuinely succeeded — the reader got a usable page. caught=1 is what tells you it was degraded. See observability for wiring event.caught into Sentry or a metrics backend.",
+      },
+
+      { kind: "h2", text: "Showing the error while developing" },
+      {
+        kind: "code",
+        language: "tsx",
+        label: "a fallback that reads the error",
+        text: `<Boundary fallback={({ error }) => <pre>{String(error)}</pre>}>
+  <Reviews productId={product.id} />
+</Boundary>`,
+      },
+      {
+        kind: "p",
+        text: "error is populated in development and undefined in production — the same contract routes/_500.tsx already has, decided by the framework rather than left to each fallback to handle responsibly. An exception message routinely carries a file path, a query or a connection string, and a fallback renders into a page a visitor reads.",
+      },
+
+      { kind: "h2", text: "What a discarded subtree leaves behind" },
+      {
+        kind: "p",
+        text: "Nothing. A child that rendered part of itself before throwing contributes none of that markup, and an island it had already registered is removed from the hydration payload — otherwise the page would name an island with no element on it, and the client would hunt for a marker that is not there while everything looked correct.",
+      },
+      {
+        kind: "list",
+        items: [
+          "Boundaries nest. The innermost one that can handle the error does.",
+          "A fallback that itself throws is not caught by its own boundary — that would recurse. It escalates to _500.",
+          "Inside an islands/ component a boundary does nothing: the client renders its children unguarded. Islands are the one place code runs twice, and a boundary that caught on first paint but not on later updates would be worse than one that never claimed to.",
+        ],
+      },
+      {
+        kind: "quote",
+        text: "Use one where a section can fail independently and the page is still worth serving — a reviews block, a recommendation strip, a third-party embed. Wrapping a whole page in one only moves your _500 page inside your layout.",
+      },
     ],
   },
 
@@ -1743,12 +1867,48 @@ if (!existsSync(resolve(process.cwd(), ".stoneware/islands.json"))) {
   {
     slug: "whats-new",
     title: "What's new",
-    summary: "0.1.6 — a request hook, a request path about three times faster, and a dev server that stops breaking itself.",
+    summary: "0.1.6 — error boundaries, a request hook, a request path about three times faster, and a dev server that stops breaking itself.",
     blocks: [
       { kind: "h2", text: "0.1.6" },
       {
         kind: "p",
         text: "Not published yet. npm still installs 0.1.5, which is what this site runs on. Everything below is in the repository with tests behind it, and this page becomes the release note when it ships.",
+      },
+
+      { kind: "h2", text: "One widget can fail without taking the page" },
+      {
+        kind: "figure",
+        label: "a component throws mid-page",
+        text: `  before                          now
+  ──────────────────────────      ──────────────────────────
+  500 — the whole page            200 — the page intact,
+  unwinds to _500.tsx             a short note where the
+                                  widget was
+  a malformed row in one
+  widget costs the article        and the error still
+  around it                       reaches your logs`,
+      },
+      {
+        kind: "code",
+        language: "tsx",
+        label: "the whole API",
+        text: `import { Boundary } from "stoneware";
+
+<Boundary fallback={<p>Reviews are unavailable right now.</p>}>
+  <Reviews productId={product.id} />
+</Boundary>`,
+      },
+      {
+        kind: "p",
+        text: "Server-side only, and cheap for a reason: rendering is one synchronous walk to a string, so catching is a try around a subtree. No error state, nothing to reset, no second pass, and no JavaScript shipped. See error boundaries.",
+      },
+      {
+        kind: "p",
+        text: "notFound() is deliberately not caught — it is a routing decision travelling as an exception, and swallowing it would render a fallback with a 200. And a caught error is never silent: it goes to the console always, and onto the request's observe event as event.caught, so a degraded page is one you know about rather than one that merely looks fine.",
+      },
+      {
+        kind: "quote",
+        text: "It survived the measurement that killed a bigger idea. Rewriting the renderer to append into a shared buffer would have made a discarded subtree need an offset and a truncate; because it returns strings up the tree instead, a subtree that throws has simply produced nothing yet. The rewrite was measured, found worthless, and not made — which is why this one is small.",
       },
 
       { kind: "h2", text: "One hook that sees every request" },
@@ -2700,7 +2860,16 @@ export const DOC_GROUPS: DocGroup[] = [
   },
   {
     label: "Core",
-    slugs: ["routing", "islands", "hydration", "head-and-images", "seo", "styling", "error-pages"],
+    slugs: [
+      "routing",
+      "islands",
+      "hydration",
+      "head-and-images",
+      "seo",
+      "styling",
+      "error-pages",
+      "error-boundaries",
+    ],
   },
   {
     label: "Server",
