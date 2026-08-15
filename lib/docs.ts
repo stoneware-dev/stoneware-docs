@@ -1743,7 +1743,7 @@ if (!existsSync(resolve(process.cwd(), ".stoneware/islands.json"))) {
   {
     slug: "whats-new",
     title: "What's new",
-    summary: "0.1.6 — a request hook worth building in, and the third instance of one bug.",
+    summary: "0.1.6 — a request hook, a request path about three times faster, and a dev server that stops breaking itself.",
     blocks: [
       { kind: "h2", text: "0.1.6" },
       {
@@ -1855,6 +1855,83 @@ export default defineConfig({
         text: "The build now writes a static import of stoneware.config.ts into the generated entry, so the bundler inlines it exactly like your routes. Verified the way the last two were: build, move the output, delete routes/, islands/, islands.json and the config itself, then serve from a different directory. A container or VPS that ships the whole directory was never affected by any of the three.",
       },
 
+      { kind: "h2", text: "Editing an island no longer breaks the dev server" },
+      {
+        kind: "figure",
+        label: "save a file under islands/, then reload the page",
+        text: `  before                          now
+  ──────────────────────────      ──────────────────────────
+  500 on any page with a          200, with the edit applied
+  Form, blaming the
+  template rather than            one server, one port, for
+  the reload                      the life of the process
+
+  plus a second server on         live-reload sockets stay
+  the next port — the only        open across the swap
+  one that actually works`,
+      },
+      {
+        kind: "p",
+        text: "The dev server called Bun.serve again on every hot re-evaluation. The previous one stayed bound, the new one took the next free port, and the browser carried on talking to a server built from the previous module graph. Editing anything under islands/ triggers that re-evaluation, because island modules are imported through the framework's own graph.",
+      },
+      {
+        kind: "p",
+        text: "Once two graphs were live, every identity check the framework makes started failing across them. csrfToken() read an AsyncLocalStorage the running server had never written to, so any page with a <Form> answered 500 — and the error named the template rather than the reload. Each further edit stranded another server on another port.",
+      },
+      {
+        kind: "p",
+        text: "There is now one server for the life of the process, handed a new request handler on each re-evaluation rather than binding again. Same port, one live module graph, and the live-reload connections stay open across the swap instead of reconnecting.",
+      },
+      {
+        kind: "quote",
+        text: "This bug is as old as the dev server and cost a restart every time it fired. It went unnoticed because nothing logged it — which is what the request hook above, added in the same release, is for. The first thing it printed was the 500 nobody had seen.",
+      },
+
+      { kind: "h2", text: "The dev server rebuilds only what changed" },
+      {
+        kind: "figure",
+        label: "time spent rebuilding after one save",
+        text: `  what you edited                 rebuild cost
+  ──────────────────────────      ──────────────────────────
+  a template (.tsx)               53 ms  ->  0.1 ms
+  a file in public/               53 ms  ->  0.0 ms
+  a stylesheet                    53 ms  ->   10 ms
+  an island or lib/               53 ms  ->   50 ms`,
+      },
+      {
+        kind: "p",
+        text: "Every file change redid all of it: re-import every island, re-bundle every client chunk, re-emit the stylesheet. Editing a template invalidates none of that. Each watched directory now declares what it can actually invalidate — routes/ re-imports templates and only builds a .css, islands/ and lib/ are bundled into chunks, public/ is served as-is and builds nothing.",
+      },
+      {
+        kind: "p",
+        text: "Measured on a fixture with two islands, so the saving grows with the number you have. Rebuilding the stylesheet is never skipped when the islands rebuild: building the chunks clears the static directory, and a stylesheet left behind would simply be gone.",
+      },
+
+      { kind: "h2", text: "A faster request path" },
+      {
+        kind: "figure",
+        label: "server time for one page request, same page and machine",
+        text: `  0.1.5   ~300 us
+  0.1.6    ~80 us
+
+  nothing about the framework's shape changed —
+  this is work that was being repeated per request
+  and is now done once, or not at all`,
+      },
+      {
+        kind: "list",
+        items: [
+          "Every request that reached the router first asked the filesystem whether the path was a static file, and got its answer by catching an exception. Checking existence before resolving links removes a thrown error from the page path — the single largest item, worth roughly 95us here.",
+          "Tag and attribute names are now classified once and remembered instead of re-derived per occurrence. A 58 kB page renders about 28% faster; attribute-heavy markup about 39%.",
+          "Route matching is flat rather than linear. At 300 routes it cost 9us per request and now costs 1.1us, because literal paths are looked up rather than scanned.",
+          "The resolved form of a served directory is worked out once per process rather than once per request, and params are allocated only when a route actually captures one.",
+        ],
+      },
+      {
+        kind: "quote",
+        text: "Absolute numbers are from Windows, where filesystem syscalls and exceptions are expensive. The shape of each win holds everywhere; the size does not. Every one of these was measured before and after rather than reasoned about — and one change that looked obviously worthwhile on paper, rewriting the renderer to append into a shared buffer, turned out to be worth nothing and was not made.",
+      },
+
       { kind: "h2", text: "Also in 0.1.6" },
       {
         kind: "list",
@@ -1862,6 +1939,7 @@ export default defineConfig({
           "consoleObserver skips assets by default. One page load is one page request and then every image, stylesheet and island chunk on it; consoleObserver({ assets: true }) includes them.",
           "Durations are reported as a float, not a rounded integer. A static render is routinely faster than a millisecond, and rounding would print 0ms for the path the framework exists to make fast.",
           "formatEvent is exported, so you can keep the one-line format while sending it somewhere other than the console.",
+          "stoneware export no longer fires your observer. An export prerenders by fetching through the ordinary pipeline, but nobody is visiting — without this, every build sent a burst of synthetic traffic indistinguishable from the real thing.",
         ],
       },
 
