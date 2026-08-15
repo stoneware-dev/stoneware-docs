@@ -1743,12 +1743,150 @@ if (!existsSync(resolve(process.cwd(), ".stoneware/islands.json"))) {
   {
     slug: "whats-new",
     title: "What's new",
-    summary: "0.1.5 and 0.1.4 — what changed, what it replaces, and why.",
+    summary: "0.1.6 — a request hook worth building in, and the third instance of one bug.",
     blocks: [
+      { kind: "h2", text: "0.1.6" },
+      {
+        kind: "p",
+        text: "Not published yet. npm still installs 0.1.5, which is what this site runs on. Everything below is in the repository with tests behind it, and this page becomes the release note when it ships.",
+      },
+
+      { kind: "h2", text: "One hook that sees every request" },
+      {
+        kind: "figure",
+        label: "what a request log could tell you",
+        text: `  before                          now
+  ──────────────────────────      ──────────────────────────
+  nothing, unless you wrote       one line, from one config
+  it into _middleware.ts          key, on every request
+
+  and middleware runs before      200 GET /blog/hello-world
+  matching, so the most it          1.1ms  /blog/[slug]
+  could ever report was the
+  path that was asked for         the pattern, not the path`,
+      },
+      {
+        kind: "code",
+        language: "ts",
+        label: "stoneware.config.ts",
+        text: `import { defineConfig, consoleObserver } from "stoneware";
+
+export default defineConfig({
+  observe: consoleObserver(),
+});`,
+      },
+      {
+        kind: "p",
+        text: "stoneware dev installs that observer for you, so development prints a line per request with no configuration. Production installs nothing until you ask — a server that narrates itself by default is a server whose logs you turn off.",
+      },
+      {
+        kind: "p",
+        text: "The field that makes this worth building into the framework rather than leaving to you is route: the matched pattern, /blog/[slug], not the path that was requested. That is what you group by — one row per route instead of one row per blog post — and middleware cannot produce it, because middleware runs before matching. kind is the same argument: only the pipeline knows whether a 404 came from an unmatched path or from a page that called notFound(), and only it can tell a CSRF rejection apart from an application error.",
+      },
+      {
+        kind: "figure",
+        label: "event.kind",
+        text: `  page         a route rendered HTML, notFound() included
+  action       an HTTP method handler under routes/
+  asset        public/ or a built island chunk
+  not-found    nothing matched the path
+  middleware   _middleware.ts answered instead of the route
+  preflight    a CORS OPTIONS, answered before anything else
+  rejected     CSRF verification refused it
+  error        something threw and reached the exit point`,
+      },
+      {
+        kind: "p",
+        text: "rejected is deliberately not error. A rise in CSRF rejections is a security signal — a stale form, a misconfigured proxy, or somebody trying — and averaging it into the 5xx rate hides all three.",
+      },
+      {
+        kind: "code",
+        language: "ts",
+        label: "sending it somewhere other than the console",
+        text: `observe: (event) => {
+  metrics.timing("http.request", event.durationMs, {
+    route: event.route ?? "unmatched",
+    kind: event.kind,
+    status: String(event.status),
+  });
+  if (event.error) Sentry.captureException(event.error);
+},`,
+      },
+
+      { kind: "h2", text: "What an observer cannot do" },
+      {
+        kind: "p",
+        text: "It is handed a finished response and its return value is discarded. See everything, change nothing — for the same reason middleware has no next(): the security headers are applied at a single exit point, and a hook that could rewrite what has already been assembled could remove them.",
+      },
+      {
+        kind: "list",
+        items: [
+          "An observer that throws is reported once per process and the request is served normally. A broken logger must not be able to turn a 200 into a 500.",
+          "An async one is accepted and never awaited, so no response inherits the latency of a metrics backend. A rejected promise is reported rather than left unhandled.",
+          "stoneware export suppresses it. An export prerenders by fetching through the ordinary pipeline, but nobody is visiting — without this, every build would send a burst of synthetic traffic indistinguishable from the real thing.",
+        ],
+      },
+      {
+        kind: "quote",
+        text: "The event carries the full URL, query string included. That is where personal data ends up when it ends up anywhere, so strip what you must before forwarding it off the box.",
+      },
+
+      { kind: "h2", text: "Your configuration now travels with the build" },
+      {
+        kind: "figure",
+        label: "the same mistake, a third time",
+        text: `  0.1.4    routes/ rescanned at runtime
+  0.1.5    islands.json read at runtime
+  0.1.6    stoneware.config.ts imported at runtime
+
+  every one of them a path assembled while
+  running, which import tracing cannot see`,
+      },
+      {
+        kind: "p",
+        text: "The built server loaded your config by building a path from the project root and importing it. Same shape as the two failures before it, and found only because observe is a function — nothing serialised could have carried one, which forced a look at how the config reaches the bundle at all.",
+      },
+      {
+        kind: "p",
+        text: "This one fails worse than the others, because nothing throws. A config file that is not there is indistinguishable from a project that has none, so the app comes up on defaults: your csp override, cors, trustProxy and observer all silently absent. If your config is where your CSRF secret comes from, it is worse still — the server refuses to start, and the message names the secret rather than the missing file.",
+      },
+      {
+        kind: "p",
+        text: "The build now writes a static import of stoneware.config.ts into the generated entry, so the bundler inlines it exactly like your routes. Verified the way the last two were: build, move the output, delete routes/, islands/, islands.json and the config itself, then serve from a different directory. A container or VPS that ships the whole directory was never affected by any of the three.",
+      },
+
+      { kind: "h2", text: "Also in 0.1.6" },
+      {
+        kind: "list",
+        items: [
+          "consoleObserver skips assets by default. One page load is one page request and then every image, stylesheet and island chunk on it; consoleObserver({ assets: true }) includes them.",
+          "Durations are reported as a float, not a rounded integer. A static render is routinely faster than a millisecond, and rounding would print 0ms for the path the framework exists to make fast.",
+          "formatEvent is exported, so you can keep the one-line format while sending it somewhere other than the console.",
+        ],
+      },
+
+      { kind: "h2", text: "Earlier versions" },
+      {
+        kind: "p",
+        text: "0.1.5 and 0.1.4 have their own page, and 0.1.3 and 0.1.2 are on past releases.",
+      },
+    ],
+  },
+
+  {
+    slug: "v0-1-4-v0-1-5",
+    title: "v0.1.4 & v0.1.5",
+    summary: "The two deploy releases — why a build would not run where it was not built.",
+    blocks: [
+      {
+        kind: "p",
+        text: "Both published 15 August 2026, hours apart, because 0.1.4 did not finish the job it set out to do. They belong together: if you are deploying to a platform that bundles your app into a function, 0.1.4 alone still fails. Both are on npm.",
+      },
+
       { kind: "h2", text: "0.1.5" },
       {
         kind: "p",
-        text: "Published 15 August 2026, hours after 0.1.4, because 0.1.4 did not finish the job it set out to do. Both belong on this page: if you are deploying to a platform that bundles your app into a function, 0.1.4 alone still fails.",
+        text: "Published hours after 0.1.4, for the half of the problem 0.1.4 left standing.",
       },
 
       { kind: "h2", text: "The rest of the build now travels with the bundle" },
@@ -1928,10 +2066,10 @@ if (!existsSync(resolve(process.cwd(), ".stoneware/islands.json"))) {
         ],
       },
 
-      { kind: "h2", text: "Earlier versions" },
+      { kind: "h2", text: "Either side of these two" },
       {
         kind: "p",
-        text: "0.1.3 and 0.1.2 have moved to past releases, so this page stays what its name says: only what is not out yet.",
+        text: "0.1.6 is on what's new. 0.1.3 and 0.1.2 are on past releases. These two have a page of their own because they are one story told twice, and because the version you are on decides which of the two deploy failures you still have.",
       },
     ],
   },
@@ -1943,7 +2081,7 @@ if (!existsSync(resolve(process.cwd(), ".stoneware/islands.json"))) {
     blocks: [
       {
         kind: "p",
-        text: "Released versions, newest first. Everything here is on npm and installable. For what is coming next, see what's new.",
+        text: "The older released versions, newest first. Everything here is on npm and installable. 0.1.5 and 0.1.4 have their own page, and what is coming next is on what's new.",
       },
 
       { kind: "h2", text: "0.1.3" },
@@ -2504,7 +2642,7 @@ export const DOC_GROUPS: DocGroup[] = [
   },
   {
     label: "Releases",
-    slugs: ["whats-new", "past-releases"],
+    slugs: ["whats-new", "v0-1-4-v0-1-5", "past-releases"],
   },
 ];
 
