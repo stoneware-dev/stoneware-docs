@@ -618,6 +618,28 @@ export default function Counter() {
 
 export const subscriberCount = signal(1284);`,
       },
+
+      { kind: "h2", text: "Import signals from stoneware/signals" },
+      {
+        kind: "p",
+        text: "Not from @preact/signals-core directly, and do not add it to your package.json. It is already a dependency of the framework, and stoneware/signals is a thin re-export of exactly the same module — the indirection exists so the dependency stays swappable without a breaking change to every island.",
+      },
+      {
+        kind: "p",
+        text: "Installing it yourself at a version outside the range the framework resolved leaves two copies in node_modules, and the two produce signals that are not instances of each other's class. From 0.1.7 the framework recognises a signal by the brand the library puts on it, which is the same across copies, so this is handled rather than fatal. On 0.1.6 and earlier it is fatal, and confusingly so:",
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "what two copies used to produce",
+        text: `TypeError: Cannot render an instance of a.
+  in <span>
+  in <QuoteBadge>`,
+      },
+      {
+        kind: "quote",
+        text: "\"An instance of a\" is a minified class name from inside a dependency, reported against a component that is correct. Recognising the brand instead of the class removes the whole failure — but one copy is still the right number, and one import path is how you get it.",
+      },
     ],
   },
 
@@ -2351,6 +2373,36 @@ aws s3 sync dist s3://your-bucket --delete`,
       {
         kind: "p",
         text: "The built-in fallback page shows the original error too, not the error page's own. It is a fallback for the page that failed, so the error it displays has to be the one the request actually hit.",
+      },
+
+      { kind: "h2", text: "Two copies of the signals library no longer break every island" },
+      {
+        kind: "p",
+        text: "A project that installs @preact/signals-core itself, at a version outside the range the framework resolved, ends up with two copies in node_modules. The framework recognised a signal with instanceof, which compares against one particular copy of the class — so a signal produced by the other copy answered false and reached the renderer as an unrecognised object.",
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "what that produced",
+        text: `TypeError: Cannot render an instance of a.
+  in <span>
+  in <QuoteBadge>`,
+      },
+      {
+        kind: "p",
+        text: "Which is about as unhelpful as an error gets: a minified class name from inside a dependency, blamed on an island that is correct, on a project where nothing looks wrong. The library brands its own instances with Symbol.for(\"preact-signals\"), and a registry symbol is identical across copies, so that is what the check uses now. instanceof stays as the first test because it is the common case and the cheaper one; the brand is the fallback that makes the answer right.",
+      },
+      {
+        kind: "list",
+        items: [
+          "Applied on both sides — the server renderer and the client DOM builder — because a mismatch between them is how an island ends up checked on first paint and unchecked on every update afterwards.",
+          "A value from a second copy is still escaped. Arriving from another copy of the library does not make it trusted.",
+          "An object that merely has a value property is still refused. The brand is the whole test, or any object with the right shape would render silently.",
+        ],
+      },
+      {
+        kind: "quote",
+        text: "Still import from stoneware/signals and leave @preact/signals-core out of your package.json — one copy remains the right number. This makes the two-copy case survivable rather than correct. See islands.",
       },
 
       { kind: "h2", text: "What this cost" },
