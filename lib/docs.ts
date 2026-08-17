@@ -1166,6 +1166,140 @@ routes/index.css        lib/Card.css        islands/Counter.css
         text: "The three scanned directories are routes/, islands/ and lib/. Anything under public/ is still served as-is at the URL root, which remains the right place for a stylesheet you want at a fixed, unhashed URL.",
       },
 
+      { kind: "h2", text: "Which files are picked up" },
+      {
+        kind: "figure",
+        label: "the discovery rule, in full",
+        text: `  routes/**/*.css     collected and bundled
+  islands/**/*.css    collected and bundled
+  lib/**/*.css        collected and bundled
+
+  public/**/*.css     NOT bundled - served as-is at its own URL
+  anywhere else       not found at all`,
+      },
+      {
+        kind: "p",
+        text: "Recursive, so lib/styles/tokens.css and islands/nav/menu.css are both found. Three directories and no configuration: if a stylesheet is not being applied, it is almost always sitting outside all three.",
+      },
+      {
+        kind: "p",
+        text: "public/ is the deliberate exception. Everything there is served byte-for-byte at its own URL, so a stylesheet you want to link yourself — a vendor file, a print sheet, something a third party fetches — goes there and gets its own <link>. It is never merged into the bundle, and it is never content-hashed, so it revalidates on each deploy instead of being cached forever.",
+      },
+
+      { kind: "h2", text: "The order sheets are concatenated" },
+      {
+        kind: "p",
+        text: "One bundle means one cascade, and the order is fixed rather than incidental. Sheets are sorted by their full path, which produces this:",
+      },
+      {
+        kind: "figure",
+        label: "concatenation order, alphabetical by full path",
+        text: `  1. islands/**   islands/Counter.css, islands/nav/Menu.css
+  2. lib/**       lib/styles/00-tokens.css, lib/ui/Card.css
+  3. routes/**    routes/about.css, routes/index.css
+
+  and within each, alphabetically:
+     lib/styles/00-tokens.css   before   lib/styles/90-print.css`,
+      },
+      {
+        kind: "p",
+        text: "The directory order falls out of the same sort — \"islands\" sorts before \"lib\" sorts before \"routes\" — so it is stable, but it is alphabetical rather than designed. Do not rely on a routes/ sheet overriding a lib/ one by position; use specificity, or a numeric prefix, and the intent stays readable.",
+      },
+      {
+        kind: "code",
+        language: "sh",
+        label: "the convention that makes the cascade explicit",
+        text: `lib/styles/00-tokens.css      # custom properties, @font-face
+lib/styles/10-base.css        # element defaults, resets
+lib/styles/20-layout.css      # containers, grid
+lib/styles/40-components.css  # buttons, cards
+lib/styles/90-utilities.css   # last word, highest specificity`,
+      },
+      {
+        kind: "quote",
+        text: "Sorting is what keeps the content hash stable. An unsorted directory scan returns files in whatever order the filesystem gives, so the same sources would produce different bytes on different machines and the hash would churn on every build.",
+      },
+
+      { kind: "h2", text: "What production does to it" },
+      {
+        kind: "figure",
+        label: "the same sources, two modes",
+        text: `  stoneware dev                   stoneware build
+  ──────────────────────────      ──────────────────────────
+  concatenated, readable,         minified
+  with a comment naming
+  each source file                styles-4kq2n7wd.css
+                                  hashed by content
+  rebuilt when a .css
+  under routes/, islands/         Cache-Control: immutable,
+  or lib/ changes                 max-age=31536000`,
+      },
+      {
+        kind: "p",
+        text: "The hash is the whole caching strategy. Because the filename changes whenever the bytes change, the file can be cached for a year and a deploy still takes effect immediately — the page simply asks for a different filename. Nothing has to be purged and no cache header has to be tuned.",
+      },
+      {
+        kind: "p",
+        text: "Minification is Bun's own CSS minifier, on in production and off in development. Development keeps the file readable, with a comment above each section naming the file it came from, so a rule you cannot place is one Ctrl-F away from its source.",
+      },
+
+      { kind: "h2", text: "Style objects inside an island" },
+      {
+        kind: "p",
+        text: "Islands can set style from a value, because an island genuinely re-renders when its signals change. An object is serialized the way you would expect, and a number gets px unless the property is one that takes a bare number.",
+      },
+      {
+        kind: "p",
+        text: "This works under the strict default policy, and the reason is worth knowing: after hydration the client writes styles through the CSSOM — element.style.setProperty — which a Content-Security-Policy does not govern. It is the style attribute in HTML that style-src blocks, not the DOM property.",
+      },
+      {
+        kind: "figure",
+        label: "the same island, before and after hydration",
+        text: `  server-rendered HTML       style="width:40%"
+                             a strict CSP refuses to apply this
+
+  after hydration            element.style.setProperty(...)
+                             applied, and updated on every change`,
+      },
+      {
+        kind: "p",
+        text: "So the initial paint is the one place to be careful. Give the element a class that looks right on its own and let the style object carry only what changes — otherwise the first frame is unstyled on a strict policy and correct a moment later. Development warns when a style attribute is emitted under a policy that will not run it, naming the element.",
+      },
+      {
+        kind: "code",
+        language: "tsx",
+        label: "islands/Meter.tsx",
+        text: `import { signal } from "stoneware/signals";
+
+const pct = signal(40);
+
+export default function Meter() {
+  return (
+    <div class="meter">
+      <div class="meter-fill" style={{ width: \`\${pct.value}%\`, opacity: 0.8 }} />
+    </div>
+  );
+}`,
+      },
+      {
+        kind: "figure",
+        label: "how a style object is serialized",
+        text: `  { backgroundColor: "red" }   ->  background-color:red
+  { marginTop: 8 }             ->  margin-top:8px
+  { opacity: 0.8 }             ->  opacity:0.8      (unitless)
+  { zIndex: 3 }                ->  z-index:3        (unitless)
+  { "--brand": "#639" }        ->  --brand:#639     (passed through)
+  { color: null }              ->  omitted entirely`,
+      },
+      {
+        kind: "p",
+        text: "Unitless properties are the ones where a bare number is already valid CSS: opacity, z-index, flex and its parts, order, line-height, font-weight, zoom, grid-row and grid-column. Everything else numeric gets px, and 0 stays 0.",
+      },
+      {
+        kind: "quote",
+        text: "This is for values that change, not for styling in general. A style attribute is the highest-specificity thing on the page and it is invisible to your stylesheet — reach for it when the number is computed, and for a class when it is not.",
+      },
+
       { kind: "h2", text: "The style attribute does not work here" },
       {
         kind: "p",
@@ -1839,6 +1973,24 @@ Bun.serve({
       },
       {
         kind: "p",
+        text: "It also copies the built island chunks and the stylesheet into public/_stoneware/, and that copy is what makes the deploy work at all. Vercel builds the function by tracing imports, and the server locates those assets through a path it works out at runtime — which tracing cannot follow, so they were left behind. public/ is a platform convention rather than a Stoneware one, so it ships regardless, and the assets are served from the CDN instead of through the function.",
+      },
+      {
+        kind: "figure",
+        label: "what that fixed, from 0.1.7",
+        text: `  before                          now
+  ──────────────────────────      ──────────────────────────
+  GET /             200           GET /             200
+  GET /_stoneware/                GET /_stoneware/
+      styles.css    404               styles.css    200
+      Counter.js    404               Counter.js    200`,
+      },
+      {
+        kind: "p",
+        text: "Add public/_stoneware/ to .gitignore — it is build output, emptied and rewritten on every build, and new projects get the rule already. On 0.1.6 and earlier the symptom is a site that renders perfectly and arrives unstyled with dead islands, which reads as a CSS bug rather than a missing file. Upgrading is the fix.",
+      },
+      {
+        kind: "p",
         text: "A side-effect import, deliberately. The bundle calls Bun.serve() as it evaluates, and that call is exactly what the preset detects. Exporting a handler instead would leave the server unstarted and every request unrouted.",
       },
       {
@@ -1890,11 +2042,343 @@ if (!existsSync(resolve(process.cwd(), ".stoneware/islands.json"))) {
       },
     ],
   },
+  {
+    slug: "static-export",
+    title: "Static export",
+    summary: "Prerender the whole site to files any host can serve, and know exactly which pages cannot go.",
+    blocks: [
+      {
+        kind: "p",
+        text: "stoneware export renders every page once, at build time, and writes the result as plain files. No Bun runs in production, no server process exists, and hosting costs whatever a bucket costs. It is the right choice for a site whose pages are the same for every visitor.",
+      },
+      {
+        kind: "code",
+        language: "sh",
+        label: "terminal",
+        text: `$ stoneware export
+
+[stoneware] exported 12 page(s) in 394ms
+  output   /home/you/site/dist
+  skipped  /api/subscribe (server action)
+  skipped  /contact (renders a CSRF token)
+  skipped  /blog/[slug] (no staticPaths export)
+  csp      embedded in every page, and written to _headers`,
+      },
+      {
+        kind: "p",
+        text: "Read the skipped lines every time. They are not warnings about the export — they are the list of pages that will not exist on the deployed site, each with the reason it could not be prerendered.",
+      },
+
+      { kind: "h2", text: "build or export" },
+      {
+        kind: "figure",
+        label: "the same project, two outputs",
+        text: `  stoneware build                 stoneware export
+  ──────────────────────────      ──────────────────────────
+  a server bundle you run         a directory of files
+  .stoneware/server.js            dist/
+
+  needs Bun in production         needs nothing in production
+                                  any static host will do
+
+  forms, sessions, anything       no request ever reaches
+  per-visitor, works              your code, so none of it runs
+
+  CSP as a real header            CSP as a meta tag, plus a
+                                  _headers file`,
+      },
+      {
+        kind: "p",
+        text: "The dividing line is whether a page differs per visitor. A blog, a docs site or a marketing site is identical for everyone and exports cleanly. A page with a login, a cart or a <Form> needs a server, because the thing that makes it work happens when the request arrives.",
+      },
+      {
+        kind: "quote",
+        text: "Both commands run the same rendering pipeline. An exported page is byte-for-byte what the server would have sent, with one deliberate exception: the Content-Security-Policy is embedded as a meta tag, because static files carry no response headers.",
+      },
+
+      { kind: "h2", text: "What gets written" },
+      {
+        kind: "figure",
+        label: "dist/, after an export",
+        text: `  dist/
+    index.html                  /
+    about/index.html            /about
+    blog/hello/index.html       /blog/hello
+    404.html                    any unmatched path
+    _headers                    CSP, for hosts that read it
+    _stoneware/
+      styles-4kq2n7wd.css       the bundled stylesheet
+      Counter-6eq2vxv9.js       one chunk per island
+      chunk-zr89pq4f.js         shared runtime
+    favicon.ico                 everything from public/,
+    img/hero.jpg                copied to the root`,
+      },
+      {
+        kind: "p",
+        text: "Pages are written as <path>/index.html rather than <path>.html, so a static host serves them at the same URLs the dev server used, with no trailing-slash redirect to configure. A non-HTML route — a sitemap.xml.ts or robots.txt.ts — is written at its literal path instead, because a crawler looking for /sitemap.xml will not find /sitemap.xml/index.html.",
+      },
+      {
+        kind: "p",
+        text: "Everything under public/ is copied to the root of dist/ as-is, and the hashed island chunks and stylesheet land under _stoneware/ at the same URLs the pages reference. Islands hydrate on an exported site exactly as they do on a served one — export removes the server, not the interactivity.",
+      },
+
+      { kind: "h2", text: "Dynamic routes need staticPaths()" },
+      {
+        kind: "p",
+        text: "A route like blog/[slug].tsx matches infinitely many URLs, and prerendering means writing a finite number of files. Nothing can guess the list, so the route exports it.",
+      },
+      {
+        kind: "code",
+        language: "tsx",
+        label: "routes/blog/[slug].tsx",
+        text: `import { notFound } from "stoneware";
+import { allPosts, getPost } from "../../lib/posts.ts";
+
+/** One object per page to write. Keys are the route's params. */
+export function staticPaths() {
+  return allPosts().map((post) => ({ slug: post.slug }));
+}
+
+export default function Post({ params }: PageProps) {
+  const post = getPost(params.slug);
+  if (!post) notFound();
+
+  return <article><h1>{post.title}</h1></article>;
+}`,
+      },
+      {
+        kind: "figure",
+        label: "what that produces",
+        text: `  staticPaths() returns          export writes
+  ──────────────────────────     ──────────────────────────
+  { slug: "hello" }              dist/blog/hello/index.html
+  { slug: "on-bun" }             dist/blog/on-bun/index.html
+
+  no staticPaths export          nothing, and the route is
+                                 listed as skipped`,
+      },
+      {
+        kind: "p",
+        text: "It may be async, so reading a directory of markdown or querying a database is fine — it runs at build time, on your machine, where the database is reachable. A nested route with two params returns both keys per object.",
+      },
+      {
+        kind: "quote",
+        text: "A dynamic route with no staticPaths is skipped rather than failing the export, because a project can legitimately serve some routes and export others. That is why the skipped list is worth reading: a missing staticPaths and a deliberate omission look identical from the outside.",
+      },
+
+      { kind: "h2", text: "Pages that cannot be exported" },
+      {
+        kind: "figure",
+        label: "the three reasons a page is skipped",
+        text: `  renders a CSRF token    a <Form> or csrfToken() on the page.
+                          The token is per-visitor and expires;
+                          baking one into a file would ship a
+                          single token to everyone, then expire.
+
+  server action           routes/api/* has no HTML to write and
+                          nothing to answer a POST with.
+
+  no staticPaths export   a [slug] route with no list of pages
+                          to write.`,
+      },
+      {
+        kind: "p",
+        text: "The CSRF rule is the one that surprises people, and it is a safety property rather than a limitation. A prerendered page is one file served to everybody, so a token embedded in it would be shared by every visitor and dead as soon as it expired. Rather than write a page whose form silently fails, the export leaves it out and says so.",
+      },
+      {
+        kind: "p",
+        text: "If you need a form on an exported site, point it at something that is not Stoneware — a form service, a function on the host, an API on another origin — and drop the <Form> helper for a plain <form>. If you need several such pages, that is the signal to deploy the server build instead.",
+      },
+
+      { kind: "h2", text: "Deploying the directory" },
+      {
+        kind: "code",
+        language: "sh",
+        label: "the whole workflow",
+        text: `bun run build          # if you want to check it compiles
+stoneware export       # writes dist/
+stoneware preview      # serve dist/ the way a static host will
+
+# then hand dist/ to any of these
+netlify deploy --prod --dir dist
+wrangler pages deploy dist
+aws s3 sync dist s3://your-bucket --delete`,
+      },
+      {
+        kind: "p",
+        text: "stoneware preview is worth the extra ten seconds. It serves dist/ with a static host's conventions rather than the dev server's — <path>/index.html for a page, 404.html for a miss, and no response headers at all — which is the one way to see the export as a visitor will before it is live.",
+      },
+      {
+        kind: "figure",
+        label: "hosts, and what each needs",
+        text: `  Netlify           reads _headers. Nothing to configure.
+  Cloudflare Pages  reads _headers. Nothing to configure.
+  GitHub Pages      serves 404.html. No header support -
+                    the meta-tag CSP is what you get.
+  S3 + CloudFront   set the error document to 404.html;
+                    add headers in the distribution.`,
+      },
+      {
+        kind: "p",
+        text: "The generated _headers file carries the full Content-Security-Policy for the hosts that read one. Everywhere else the policy still applies through the meta tag every page carries, minus three directives — frame-ancestors, report-uri and sandbox — which browsers ignore in a meta tag and which the export names explicitly rather than pretending to enforce.",
+      },
+      {
+        kind: "quote",
+        text: "404.html is the filename every static host looks for, so your routes/_404.tsx is what visitors see on a bad URL instead of the host's default page. Nothing needs to be configured for it beyond the file existing.",
+      },
+    ],
+  },
 
   {
     slug: "whats-new",
     title: "What's new",
-    summary: "0.1.6 — error boundaries, a request hook, a request path about three times faster, and a dev server that stops breaking itself.",
+    summary: "0.1.7 — deployed sites keep their CSS, the renderer names the component that broke, and the error page stops hiding the error.",
+    blocks: [
+      { kind: "h2", text: "0.1.7" },
+      {
+        kind: "p",
+        text: "Not published yet. npm still installs 0.1.6, which is what this site runs on. One deploy bug and two diagnostics fixes — and all three surfaced while building a real site with the framework rather than in a test.",
+      },
+
+      { kind: "h2", text: "A deployed site keeps its CSS and its islands" },
+      {
+        kind: "figure",
+        label: "the same deploy, before and after",
+        text: `  before                          now
+  ──────────────────────────      ──────────────────────────
+  GET /             200           GET /             200
+  GET /_stoneware/                GET /_stoneware/
+      styles.css    404               styles.css    200
+      Counter.js    404               Counter.js    200
+
+  a site that renders,            a site that renders
+  unstyled and inert              and works`,
+      },
+      {
+        kind: "p",
+        text: "The server finds island chunks and the stylesheet under .stoneware/static/ — a path it works out at runtime. A platform that builds a function by tracing imports cannot see a path that is worked out, so the bundle arrived and the assets did not. Every page answered 200 with correct markup, and every stylesheet and script on it answered 404.",
+      },
+      {
+        kind: "p",
+        text: "That shape is why it went unnoticed for three releases while the ones around it were being fixed. Nothing crashes, nothing is logged, and the deploy reports success — it presents as a CSS problem in your own project rather than a missing file.",
+      },
+      {
+        kind: "p",
+        text: "stoneware build --target vercel now copies the built chunks into public/_stoneware/. public/ is a platform convention rather than a Stoneware one, so it ships without being traced, and the assets are served from the CDN instead of through a function invocation — cheaper and faster than the arrangement that was failing.",
+      },
+      {
+        kind: "code",
+        language: "sh",
+        label: "the build says what it copied",
+        text: `$ stoneware build --target vercel
+
+  target   vercel
+  entry    server.js
+  config   vercel.json
+  assets   10 file(s) copied to public/_stoneware/`,
+      },
+      {
+        kind: "list",
+        items: [
+          "The directory is emptied before each copy. Chunk filenames carry a content hash, so merging would accumulate every chunk from every previous build and grow the deployment forever.",
+          "Add public/_stoneware/ to .gitignore. It is build output, rewritten on every build — new projects get the rule already.",
+          "A request for /_stoneware/* now falls through to public/ when the build directory is not there. Where the assets are in their usual place nothing changes, and hashed files keep their year-long immutable caching either way.",
+        ],
+      },
+      {
+        kind: "quote",
+        text: "Fourth in a family: routes/ rescanned at runtime, then islands.json, then stoneware.config.ts, and now the chunks themselves. Every one was a path assembled while running, and every one was invisible until something tried to ship the result somewhere else.",
+      },
+
+      { kind: "h2", text: "The renderer now names the component" },
+      {
+        kind: "figure",
+        label: "rendering a database row straight into markup",
+        text: `  before                          now
+  ──────────────────────────      ──────────────────────────
+  TypeError: Cannot render        Cannot render a plain
+  value of type object            object with keys:
+                                    id, title, price
+    at renderChild
+    at renderElement                in <span>
+    at renderChild                  in <Price>
+    at renderElement                in <ProductCard>
+    at renderChild                  in <Home>`,
+      },
+      {
+        kind: "p",
+        text: "Rendering is a depth-first walk, so a stack trace taken inside it is all renderer: renderChild called by renderElement, over and over. Every frame belongs to the framework and none of them names a line you wrote. The walk does know which component it is in — it just knows it on the way down, and the error happens on the way back up. So each component frame now catches, records its own name, and rethrows. The path assembles itself as the error unwinds.",
+      },
+      {
+        kind: "p",
+        text: "The message also says what the value actually was. \"Type object\" is equally true of a Date, a database row, a Map and a class instance, and each one needs something different done to it.",
+      },
+      {
+        kind: "figure",
+        label: "what the renderer says about the value",
+        text: `  a plain object      lists its keys: id, title, price
+  a Date              says to format it first
+  a Map or Set        says to render [...value]
+  a class instance    names the class`,
+      },
+      {
+        kind: "quote",
+        text: "Keys are named, never values. That is enough to recognise a product row on sight, without putting whatever the row holds into a log line.",
+      },
+      {
+        kind: "p",
+        text: "An error thrown by your own code keeps its message exactly as written — a database driver's error must not come back with framework prose appended to it. The component path is still collected and the server logs it beside the error instead of inside it.",
+      },
+
+      { kind: "h2", text: "A failing error page no longer hides the real error" },
+      {
+        kind: "p",
+        text: "If routes/_500.tsx threw while rendering, the log showed its failure and the original one scrolled past above it. Worse, when both failed the same way — both rendering an object, say — the two were indistinguishable: same message, same renderer-only stack.",
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "both pages failing the same way",
+        text: `[stoneware] routes/_500.tsx threw while rendering the error page.
+  This is the error page's own failure, not the one that caused the 500:
+  Cannot render a plain object with keys: theme, locale
+    in <Banner>
+
+[stoneware] The original error, which is what the 500 was actually for:
+  Cannot render a plain object with keys: id, title, price
+    in <Price>`,
+      },
+      {
+        kind: "p",
+        text: "The built-in fallback page shows the original error too, not the error page's own. It is a fallback for the page that failed, so the error it displays has to be the one the request actually hit.",
+      },
+
+      { kind: "h2", text: "What this cost" },
+      {
+        kind: "p",
+        text: "Nothing measurable, on the second attempt. The first version recorded every element as well as every component, which meant a try/catch around every element in the tree — 38% of a full page render, measured, which would have given back more than the renderer gained in 0.1.6.",
+      },
+      {
+        kind: "p",
+        text: "Components are far rarer than elements, so component frames are recorded by catching and the innermost element is recorded by two field writes instead. The path names every component plus the element the value landed in; the elements in between are left out deliberately, and a test asserts they stay out.",
+      },
+      {
+        kind: "quote",
+        text: "The microbenchmark that first said try/catch was free had been optimised away by the JIT. The real cost only appeared in a page-shaped benchmark — which is the argument for measuring the thing you actually ship rather than the thing you can isolate.",
+      },
+
+      { kind: "h2", text: "Earlier versions" },
+      {
+        kind: "p",
+        text: "0.1.6 has its own page, 0.1.5 and 0.1.4 share one, and 0.1.3 and 0.1.2 are on past releases.",
+      },
+    ],
+  },
+
+  {
+    slug: "v0-1-6",
+    title: "v0.1.6",
+    summary: "Error boundaries, a request hook, a request path about three times faster, and a dev server that stopped breaking itself.",
     blocks: [
       { kind: "h2", text: "0.1.6" },
       {
@@ -2131,10 +2615,10 @@ export default defineConfig({
         ],
       },
 
-      { kind: "h2", text: "Earlier versions" },
+      { kind: "h2", text: "Either side of this one" },
       {
         kind: "p",
-        text: "0.1.5 and 0.1.4 have their own page, and 0.1.3 and 0.1.2 are on past releases.",
+        text: "The current release is on what's new. 0.1.5 and 0.1.4 have their own page, and 0.1.3 and 0.1.2 are on past releases.",
       },
     ],
   },
@@ -2909,7 +3393,7 @@ export const DOC_GROUPS: DocGroup[] = [
   },
   {
     label: "Build & deploy",
-    slugs: ["cli", "deploying"],
+    slugs: ["cli", "deploying", "static-export"],
   },
   {
     label: "Reference",
@@ -2917,7 +3401,7 @@ export const DOC_GROUPS: DocGroup[] = [
   },
   {
     label: "Releases",
-    slugs: ["whats-new", "v0-1-4-v0-1-5", "past-releases"],
+    slugs: ["whats-new", "v0-1-6", "v0-1-4-v0-1-5", "past-releases"],
   },
 ];
 
