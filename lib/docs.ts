@@ -1909,11 +1909,107 @@ islands/Counter.tsx:3:10
   {
     slug: "deploying",
     title: "Deploying",
-    summary: "What a host has to provide, which platforms qualify, and the one file you add.",
+    summary: "A checklist, one decision, and a walkthrough per platform — server or static, Vercel or Cloudflare.",
     blocks: [
       {
         kind: "p",
         text: "A Stoneware app is a Bun HTTP server. Deploying it means running one file on a host that has Bun — there is no adapter layer and no per-platform build target.",
+      },
+
+      { kind: "h2", text: "Before you deploy: five minutes that save an evening" },
+      {
+        kind: "p",
+        text: "Every item below is here because it broke a real deploy, and each one fails in a way that looks like something else. Run them in order and the deploy is boring.",
+      },
+      {
+        kind: "code",
+        language: "sh",
+        label: "terminal",
+        text: `stoneware doctor      # tsconfig, Bun version, .gitignore, config
+stoneware build       # or: stoneware export
+stoneware preview     # export only — serves dist/ the way a host will`,
+      },
+      {
+        kind: "figure",
+        label: "the five checks",
+        text: `  1  STONEWARE_CSRF_SECRET set in the host's environment
+     production refuses to start without one, and the error
+     names the secret rather than the deploy
+
+  2  stoneware doctor is clean
+     catches the tsconfig JSX mistake that only shows up
+     mid-render, as a TypeError blaming a correct template
+
+  3  exporting? every dynamic route has staticPaths()
+     without it the page is never written, and the link to it
+     404s while the rest of the site looks perfect
+
+  4  read the skipped list the export prints
+     it is not a warning about the export - it is the list of
+     pages that will not exist on the deployed site
+
+  5  after deploying, open one page and check the network tab
+     HTML 200 with the CSS and island JS 404 is its own failure,
+     not a styling problem`,
+      },
+      {
+        kind: "p",
+        text: "Item 1 is the most common crash by a wide margin. Item 3 is the most common silent failure: nothing errors, the build succeeds, and one section of the site simply is not there.",
+      },
+
+      { kind: "h2", text: "Which path: server or export" },
+      {
+        kind: "figure",
+        label: "one question decides it",
+        text: `  Does any page differ per visitor?
+  (a login, a cart, a <Form> that posts back)
+
+        yes                              no
+         │                                │
+    stoneware build                 stoneware export
+    needs a host that runs Bun      needs nothing at all
+         │                                │
+    VPS, Docker, Fly,               Cloudflare, Netlify,
+    Railway, Render, Vercel         GitHub Pages, S3, any CDN`,
+      },
+      {
+        kind: "p",
+        text: "A blog, a docs site, a brochure site and most marketing sites are identical for everyone and export cleanly. If you are unsure, run stoneware export and read what it skips — the pages it cannot prerender are exactly the pages that need a server.",
+      },
+      {
+        kind: "quote",
+        text: "You can change your mind later. Both commands run the same routes through the same rendering pipeline, so moving between them is a change of deploy target rather than a rewrite.",
+      },
+
+      { kind: "h2", text: "The environment variable you must set" },
+      {
+        kind: "code",
+        language: "sh",
+        label: "the one that is not optional",
+        text: `STONEWARE_CSRF_SECRET=<32+ random characters>
+
+# generate one
+openssl rand -base64 32`,
+      },
+      {
+        kind: "p",
+        text: "A production server refuses to start without it. That is deliberate: with no fixed secret, tokens are invalidated by every restart and are not shared between processes, so forms would fail intermittently on any host that runs more than one instance — which is far harder to diagnose than refusing to boot.",
+      },
+      {
+        kind: "list",
+        items: [
+          "On Vercel, scope it to All Environments. Production-only is the usual mistake and it leaves every preview deployment crashing on boot.",
+          "Set it in the host's dashboard, not in a committed file. Bun reads .env automatically in development, and .env is gitignored for exactly this reason.",
+          "Rotating it invalidates every form currently open in a browser. Those visitors get one rejected submission and a fresh token afterwards.",
+        ],
+      },
+      {
+        kind: "figure",
+        label: "other variables, all optional",
+        text: `  PORT                   the port to bind. Most platforms set it.
+  HOST                   defaults to 0.0.0.0 in production
+  STONEWARE_TRUST_PROXY  "proto" behind a TLS-terminating proxy,
+                         so canonical URLs say https://`,
       },
 
       { kind: "h2", text: "What the host must provide" },
@@ -2159,6 +2255,72 @@ Bun.serve({
       {
         kind: "quote",
         text: "On 0.1.3 and earlier the usual failure is different and quieter: the bundle records the absolute path it was built at and rescans routes/ on every request, so a function that starts perfectly well answers 404 for every path. Fixed in 0.1.4 rather than worked around, so upgrading is the answer rather than the /api model.",
+      },
+
+      { kind: "h2", text: "Cloudflare, Netlify, GitHub Pages and any CDN" },
+      {
+        kind: "p",
+        text: "None of these run Bun, so none can host a Stoneware server — they host the output of stoneware export instead. That is not a downgrade for a content site: there is no cold start, no runtime to crash, and the whole thing is served from the edge.",
+      },
+      {
+        kind: "code",
+        language: "sh",
+        label: "Cloudflare Workers, with static assets",
+        text: `stoneware export          # writes dist/
+wrangler deploy`,
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "wrangler.toml",
+        text: `name = "my-site"
+compatibility_date = "2026-01-01"
+
+[assets]
+directory = "dist"
+not_found_handling = "404-page"`,
+      },
+      {
+        kind: "p",
+        text: "not_found_handling = \"404-page\" is what makes your routes/_404.tsx the page a visitor sees on a bad URL. Without it Cloudflare serves its own. The export writes dist/404.html precisely because that is the filename every static host looks for.",
+      },
+      {
+        kind: "figure",
+        label: "the other three, same directory",
+        text: `  Cloudflare Pages   wrangler pages deploy dist
+                     reads _headers, so the CSP arrives intact
+
+  Netlify            netlify deploy --prod --dir dist
+                     reads _headers too
+
+  GitHub Pages       push dist/ to the pages branch
+                     no header support - the meta-tag CSP is
+                     what you get, and 404.html still works
+
+  S3 + CloudFront    aws s3 sync dist s3://bucket --delete
+                     set the error document to 404.html`,
+      },
+
+      { kind: "h2", text: "The failure to expect on a static host" },
+      {
+        kind: "p",
+        text: "A page that 404s while the rest of the site works is almost never the host. It is a page the export never wrote, and the export said so at the time.",
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "the line that predicted it",
+        text: `[stoneware] exported 10 page(s) in 13088ms
+  skipped  /divisions/[division] (no staticPaths export)
+  skipped  /products/[sku] (no staticPaths export)`,
+      },
+      {
+        kind: "p",
+        text: "A dynamic route matches infinitely many URLs and prerendering writes a finite number of files, so the route has to say which ones. Without staticPaths() nothing is written, the links to those pages still appear on the pages that were written, and every one of them 404s on a site that otherwise looks finished. See static export for how to write it.",
+      },
+      {
+        kind: "quote",
+        text: "The export exits 0 in this case, so a CI pipeline will not catch it either. Until that changes, the skipped list is the check — read it on every deploy, or grep it in CI.",
       },
 
       { kind: "h2", text: "When a serverless deploy crashes" },
