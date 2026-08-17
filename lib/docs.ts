@@ -1475,6 +1475,127 @@ export async function POST({ request }: ActionContext) {
   Use a class and a .css file beside the component - the build collects it.`,
       },
 
+      { kind: "h2", text: "Adding a third party: analytics, Stripe, Sentry" },
+      {
+        kind: "p",
+        text: "The default policy allows nothing but your own origin, which means a third-party script is blocked until you say otherwise. Say it by naming the origins you need — everything you do not mention stays exactly as the framework set it.",
+      },
+      {
+        kind: "code",
+        language: "ts",
+        label: "stoneware.config.ts — Google Analytics",
+        text: `import { defineConfig } from "stoneware";
+
+export default defineConfig({
+  csp: {
+    scriptSrc: ["https://www.googletagmanager.com"],
+    connectSrc: ["https://www.google-analytics.com"],
+    imgSrc: ["https://www.google-analytics.com"],
+  },
+});`,
+      },
+      {
+        kind: "figure",
+        label: "what that sends",
+        text: `  default-src 'self'
+  script-src  'self' https://www.googletagmanager.com
+  style-src   'self'
+  img-src     'self' data: https://www.google-analytics.com
+  font-src    'self'
+  connect-src 'self' https://www.google-analytics.com
+  object-src  'none'          <- untouched
+  base-uri    'self'          <- untouched
+  form-action 'self'          <- untouched
+  frame-ancestors 'none'      <- untouched`,
+      },
+      {
+        kind: "p",
+        text: "Each list is added to the default rather than replacing it, so 'self' survives, img-src keeps its data:, and the directives you never mentioned are byte-identical to the ones you would have got with no configuration at all. That is the entire point of the object form: a policy retyped by hand to add one origin is a policy with object-src 'none' missing from it, and nothing anywhere reports the omission.",
+      },
+      {
+        kind: "list",
+        items: [
+          "scriptSrc, styleSrc, imgSrc, fontSrc, connectSrc, frameSrc, workerSrc, mediaSrc, objectSrc, baseUri, formAction, frameAncestors, defaultSrc.",
+          "A directive the default policy does not list — frameSrc, workerSrc — is created seeded with 'self', because that is what it was inheriting from default-src. Without that, allowing Stripe's frame would block your own.",
+          "A source has to be one token. A value containing a semicolon, a comma or whitespace is refused rather than concatenated, because a semicolon ends the directive and starts another — that is how an origin read from an environment variable would append script-src 'unsafe-inline' to a policy that never asked for it.",
+        ],
+      },
+
+      { kind: "h2", text: "Inline snippets, without unsafe-inline" },
+      {
+        kind: "p",
+        text: "Most vendors hand you a bootstrap snippet to paste inline. Under a policy without 'unsafe-inline' the browser refuses it, and the fix is not to add 'unsafe-inline' — that would allow every inline script on the site, including one an injection put there, which is the single thing script-src 'self' is protecting you from.",
+      },
+      {
+        kind: "figure",
+        label: "the same snippet, two placements",
+        text: `  <script>gtag('config','G-XXX')</script>
+  blocked — and allowing it means allowing all inline script
+
+  public/analytics.js  +  <script src="/analytics.js" />
+  allowed by 'self' already, no policy change at all`,
+      },
+      {
+        kind: "code",
+        language: "ts",
+        label: "public/analytics.js",
+        text: `window.dataLayer = window.dataLayer || [];
+function gtag() { dataLayer.push(arguments); }
+gtag("js", new Date());
+gtag("config", "G-XXXXXXX");`,
+      },
+      {
+        kind: "p",
+        text: "Move the snippet into a file under public/ and load it with a script tag. It is served from your own origin, so 'self' covers it and the policy does not change. The only entry the vendor genuinely needs is the one for their own domain.",
+      },
+      {
+        kind: "quote",
+        text: "Stoneware never emits inline executable script itself — hydration payloads are JSON in a script type=\"application/json\" tag, not code — which is why script-src 'self' is livable as a default and why no nonce plumbing exists to work around.",
+      },
+
+      { kind: "h2", text: "Which directive blocks what" },
+      {
+        kind: "p",
+        text: "Observed in a browser against the default policy, not inferred from the spec. Each row is a real violation event and the directive the browser attributed it to.",
+      },
+      {
+        kind: "figure",
+        label: "a Google Analytics integration, before configuring anything",
+        text: `  script-src   https://www.googletagmanager.com/gtag/js
+  script-src   the inline bootstrap snippet
+  connect-src  https://www.google-analytics.com/g/collect
+  img-src      https://www.google-analytics.com/collect   (beacon fallback)
+  style-src    https://fonts.googleapis.com/css2
+  font-src     https://fonts.gstatic.com
+  frame-src    https://td.doubleclick.net
+  worker-src   blob:                                      (Sentry replay, etc.)`,
+      },
+      {
+        kind: "p",
+        text: "frame-src and worker-src are not in the default policy — they inherit from default-src 'self' — so a violation is reported against them even though nothing names them. Naming either in the config creates it with 'self' already present.",
+      },
+      {
+        kind: "quote",
+        text: "Not every third-party failure is CSP. Check the browser console for a line beginning \"Refused to\" — that names the directive. A request that fails without one is a CORS problem, an ad blocker, or the vendor being down, and widening the policy will not fix any of those.",
+      },
+
+      { kind: "h2", text: "Where the policy applies" },
+      {
+        kind: "figure",
+        label: "one configuration, three delivery mechanisms",
+        text: `  stoneware start    Content-Security-Policy response header
+  stoneware export   <meta http-equiv> in every page
+                     plus _headers, for hosts that read one`,
+      },
+      {
+        kind: "p",
+        text: "The object is resolved to a policy string once, when the config loads, so all three carry the same thing and a static export cannot drift from a served one. The meta tag drops frame-ancestors, report-uri and sandbox because browsers ignore those in a meta tag — the export names them rather than pretending to enforce them.",
+      },
+      {
+        kind: "p",
+        text: "The string form still works and still replaces the policy outright, and csp: false still removes the header. Both remain the explicit, greppable way to take the whole thing over; the object is for the ordinary case of allowing one vendor.",
+      },
+
       { kind: "h2", text: "The policy after a static export" },
       {
         kind: "p",
