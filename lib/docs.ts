@@ -2592,12 +2592,12 @@ aws s3 sync dist s3://your-bucket --delete`,
   {
     slug: "whats-new",
     title: "What's new",
-    summary: "0.1.7 — deployed sites keep their CSS, the renderer names the component that broke, and the error page stops hiding the error.",
+    summary: "0.1.7 — deployed sites keep their CSS, third parties get a policy that extends, the export checks its own links, and errors name the component.",
     blocks: [
       { kind: "h2", text: "0.1.7" },
       {
         kind: "p",
-        text: "Not published yet. npm still installs 0.1.6, which is what this site runs on. One deploy bug and two diagnostics fixes — and all three surfaced while building a real site with the framework rather than in a test.",
+        text: "Not published yet. npm still installs 0.1.6, which is what this site runs on. Six changes: two deploy failures, two diagnostics, and two things you could not do at all. Every one of them surfaced while building and deploying a real site rather than in a test.",
       },
 
       { kind: "h2", text: "A deployed site keeps its CSS and its islands" },
@@ -2741,6 +2741,60 @@ aws s3 sync dist s3://your-bucket --delete`,
       {
         kind: "quote",
         text: "Still import from stoneware/signals and leave @preact/signals-core out of your package.json — one copy remains the right number. This makes the two-copy case survivable rather than correct. See islands.",
+      },
+
+      { kind: "h2", text: "Third-party services without giving up the policy" },
+      {
+        kind: "p",
+        text: "Adding Google Analytics, Stripe or Sentry used to mean retyping the entire Content-Security-Policy as a string, because csp took a string or nothing. A policy retyped by hand to allow one origin is a policy with object-src 'none' or base-uri 'self' missing from it, and nothing anywhere reports the omission.",
+      },
+      {
+        kind: "code",
+        language: "ts",
+        label: "stoneware.config.ts",
+        text: `csp: {
+  scriptSrc: ["https://www.googletagmanager.com"],
+  connectSrc: ["https://www.google-analytics.com"],
+  imgSrc: ["https://www.google-analytics.com"],
+}`,
+      },
+      {
+        kind: "p",
+        text: "Each list is added to the default rather than replacing it, so 'self' survives, img-src keeps its data:, and every directive you did not mention is byte-identical to the one you would have got with no configuration at all. The string form still replaces the policy outright and csp: false still removes it — both remain the explicit way to take the whole thing over.",
+      },
+      {
+        kind: "list",
+        items: [
+          "A directive the default policy does not list — frameSrc, workerSrc — is created seeded with 'self', because that is what it was inheriting from default-src. Without that, allowing Stripe's frame would block your own.",
+          "A source containing a semicolon, comma or whitespace is refused rather than concatenated. A semicolon ends the directive and starts another, which is how an origin read from an environment variable could append script-src 'unsafe-inline' to a policy that never asked for it.",
+          "Resolved to a policy string once, when the config loads, so the response header, the meta tag an export embeds and the _headers file it writes all carry the same thing — a static export cannot drift from a served one.",
+        ],
+      },
+      {
+        kind: "quote",
+        text: "You still do not need 'unsafe-inline' for analytics. The vendor's inline bootstrap snippet is the only part that seems to require it; move those few lines into a file under public/ and 'self' already covers them. See security.",
+      },
+
+      { kind: "h2", text: "The export checks its own links" },
+      {
+        kind: "figure",
+        label: "an export with a dynamic route that has no staticPaths",
+        text: `  before                          now
+  ──────────────────────────      ──────────────────────────
+  skipped  /items/[id]            skipped  /items/[id]
+  exit 0                          7 link(s) point at pages
+                                  this export did not write:
+  a site deploys whose own          /items -> /items/first
+  navigation 404s, and the          /items -> /items/second
+  first to notice is a visitor    exit 0, or 1 with --strict`,
+      },
+      {
+        kind: "p",
+        text: "The skipped line was always printed and is easy to read past: one line among several, informational in tone, on a command that exits 0. Once the pages are written their links can be resolved against the very directory about to be uploaded, so the export now names anything that resolves to nothing — a page never written, a typo in an href, a missing asset.",
+      },
+      {
+        kind: "p",
+        text: "stoneware export --strict exits 1 when any route was skipped or any link dangles, so CI fails instead of the site. Not the default, because a project may legitimately prerender some routes and serve others; and either way the pages that can be written still are. See static export.",
       },
 
       { kind: "h2", text: "What this cost" },
