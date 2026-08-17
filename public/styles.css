@@ -1544,3 +1544,87 @@ code {
   color: var(--on-glaze);
   border-radius: 3px;
 }
+
+/* ==========================================================================
+   Ergonomics
+   --------------------------------------------------------------------------
+   Three fixes, each for something measured rather than felt. The design above
+   is deliberate and is left alone; what follows is about reaching it on a
+   phone, and about landing where a link says it will.
+   ========================================================================== */
+
+/* --- Anchors under a sticky masthead -------------------------------------- */
+
+/* The masthead is 62px and sticky, so a jump to #some-heading put the heading
+   underneath it: the reader arrives at a page that looks like it scrolled to
+   the wrong place. Every anchor target keeps the masthead's height clear, plus
+   a little air so the heading is not flush against it.
+
+   `#main` matters most of the three - it is where the skip link goes, and a
+   skip link that lands behind the header defeats its own purpose. */
+:root {
+  --masthead-h: 3.875rem;
+}
+
+:is(h2, h3, h4)[id],
+#main,
+[id]:target {
+  scroll-margin-top: calc(var(--masthead-h) + 1.25rem);
+}
+
+/* --- Touch --------------------------------------------------------------- */
+
+/* Sixteen interactive elements measured under 44px tall: nav links at 21px,
+   the repository icon at 16px. Fine with a cursor, a coin-toss with a thumb.
+   
+   The hit area grows, not the design: padding and a negative margin cancel
+   out, so the masthead keeps its spacing and the target becomes reachable.
+   Scoped to coarse pointers so a mouse never pays for it. */
+@media (pointer: coarse) {
+  .masthead nav a,
+  .tools a,
+  .iconlink,
+  .docs__nav a,
+  .footer a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    padding-block: 0.65rem;
+    margin-block: -0.65rem;
+  }
+
+  /* The switch is a control, not a link, and its own box is the target. */
+  .themeswitch {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Two thumbs-width apart, or the row reads as one wide button. */
+  .masthead nav {
+    gap: 1.5rem;
+  }
+}
+
+/* --- Small screens -------------------------------------------------------- */
+
+/* The nav shrank to 0.72rem here, which is about 11.5px: the smallest text on
+   the page was the part you navigate with. Legibility floor first, and the
+   label that repeats a destination already one tap away goes instead. */
+@media (max-width: 30rem) {
+  .masthead nav {
+    font-size: 0.8rem;
+  }
+
+  .masthead nav a[href="/docs/quick-start"] {
+    display: none;
+  }
+}
+
+/* Long unbroken strings - a package name, a URL in prose - are the usual cause
+   of a phone scrolling sideways. Nothing overflows today; this keeps it that
+   way as content is added. */
+@media (max-width: 34rem) {
+  .prose :is(p, li, td) {
+    overflow-wrap: anywhere;
+  }
+}
