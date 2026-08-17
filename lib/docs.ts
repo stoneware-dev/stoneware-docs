@@ -2592,7 +2592,102 @@ aws s3 sync dist s3://your-bucket --delete`,
   {
     slug: "whats-new",
     title: "What's new",
-    summary: "0.1.7 — deployed sites keep their CSS, third parties get a policy that extends, the export checks its own links, and errors name the component.",
+    summary: "0.1.8 — the client chunks finally reach a deployed site, and a URL can no longer make the server answer 500.",
+    blocks: [
+      { kind: "h2", text: "0.1.8" },
+      {
+        kind: "p",
+        text: "Not published yet. npm still installs 0.1.7. Two fixes, and the first of them is the one that has been quietly breaking deployed sites since islands existed.",
+      },
+
+      { kind: "h2", text: "The client chunks finally reach a deployed site" },
+      {
+        kind: "figure",
+        label: "a Bun server on Vercel",
+        text: `  before                          now
+  ──────────────────────────      ──────────────────────────
+  GET /             200           GET /             200
+  GET /_stoneware/                GET /_stoneware/
+      styles.css    404               styles.css    200
+      Counter.js    404               Counter.js    200
+
+  a site that renders and         a site that renders
+  arrives unstyled and inert      and works`,
+      },
+      {
+        kind: "p",
+        text: "0.1.7 claimed this was fixed by copying the chunks into public/. It was not, and the reason is worth stating plainly: Vercel collects public/ from the repository, so a directory the build creates is never in the snapshot — and it is gitignored build output, so committing it is not an answer either. The copy landed somewhere that had already been read.",
+      },
+      {
+        kind: "p",
+        text: "From 0.1.8, stoneware build --target vercel carries the chunks inside the server bundle as values. That is the one form that cannot be lost, because a bundler that traces imports follows a static import by definition. It is the same fix the route table, the island manifest and the config each needed before it — the fifth instance of one mistake, finally applied at the level it belonged.",
+      },
+      {
+        kind: "figure",
+        label: "the whole family, in order",
+        text: `  0.1.4   routes/ rescanned at runtime
+  0.1.5   islands.json read at runtime
+  0.1.6   stoneware.config.ts imported at runtime
+  0.1.8   the client chunks themselves
+
+  every one a path assembled while running,
+  and every one invisible until a deploy`,
+      },
+      {
+        kind: "list",
+        items: [
+          "Opt-in, and set only by --target vercel. A VPS or container ships the directory itself and should not carry a second copy of every chunk.",
+          "Carried as base64, because a stylesheet can pull a font or an image into the same directory and those are binary.",
+          "Bundle cost is roughly the size of your client output — about 60 kB on a site with five islands and 33 kB of CSS.",
+        ],
+      },
+      {
+        kind: "quote",
+        text: "How this went unnoticed for four releases: the documentation site styles itself from a hand-written public/styles.css, so it never used the pipeline it documents. The project best placed to catch this was structurally incapable of it.",
+      },
+
+      { kind: "h2", text: "A URL can no longer make the server answer 500" },
+      {
+        kind: "code",
+        language: "txt",
+        label: "found while checking the edge cases of the fix above",
+        text: `GET /_stoneware/toString
+  500  TypeError: Received function toString`,
+      },
+      {
+        kind: "p",
+        text: "The inlined chunks arrived as a plain object and the lookup key comes straight off the URL. A plain object answers for keys nobody put in it — toString, constructor, __proto__, valueOf — so the presence check passed and a function was handed to a base64 decoder. An unauthenticated request turning into a server error.",
+      },
+      {
+        kind: "p",
+        text: "They are held in a Map now, which has no inherited keys, so \"was this chunk built\" has exactly one answer. Reverting the fix fails nine tests.",
+      },
+      {
+        kind: "quote",
+        text: "This existed for about an hour and never shipped. It is written up because the shape recurs: any lookup keyed on user input against a plain object has it, and the reflex should be a Map or Object.hasOwn rather than a truthiness check.",
+      },
+
+      { kind: "h2", text: "Also in 0.1.8" },
+      {
+        kind: "list",
+        items: [
+          "ARCHITECTURE.md, for anyone changing the framework rather than using it: the request pipeline as the security model, the render model, the relocatability bug family and the rule that follows from it, and the measurements that are easy to undo by accident.",
+          "stoneware doctor now warns on 0.1.7 as well, since the deploy bug above was not actually fixed there.",
+        ],
+      },
+
+      { kind: "h2", text: "Earlier versions" },
+      {
+        kind: "p",
+        text: "0.1.7 and 0.1.6 each have their own page, 0.1.5 and 0.1.4 share one, and 0.1.3 and 0.1.2 are on past releases.",
+      },
+    ],
+  },
+
+  {
+    slug: "v0-1-7",
+    title: "v0.1.7",
+    summary: "Error attribution, a CSP that extends, and an export that checks its own links.",
     blocks: [
       { kind: "h2", text: "0.1.7" },
       {
@@ -2811,13 +2906,14 @@ aws s3 sync dist s3://your-bucket --delete`,
         text: "The microbenchmark that first said try/catch was free had been optimised away by the JIT. The real cost only appeared in a page-shaped benchmark — which is the argument for measuring the thing you actually ship rather than the thing you can isolate.",
       },
 
-      { kind: "h2", text: "Earlier versions" },
+      { kind: "h2", text: "Either side of this one" },
       {
         kind: "p",
-        text: "0.1.6 has its own page, 0.1.5 and 0.1.4 share one, and 0.1.3 and 0.1.2 are on past releases.",
+        text: "The current release is on what's new. 0.1.6 has its own page, 0.1.5 and 0.1.4 share one, and 0.1.3 and 0.1.2 are on past releases.",
       },
     ],
   },
+
 
   {
     slug: "v0-1-6",
@@ -3845,7 +3941,7 @@ export const DOC_GROUPS: DocGroup[] = [
   },
   {
     label: "Releases",
-    slugs: ["whats-new", "v0-1-6", "v0-1-4-v0-1-5", "past-releases"],
+    slugs: ["whats-new", "v0-1-7", "v0-1-6", "v0-1-4-v0-1-5", "past-releases"],
   },
 ];
 
