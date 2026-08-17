@@ -2320,7 +2320,7 @@ not_found_handling = "404-page"`,
       },
       {
         kind: "quote",
-        text: "The export exits 0 in this case, so a CI pipeline will not catch it either. Until that changes, the skipped list is the check — read it on every deploy, or grep it in CI.",
+        text: "The export now names every link that points at a page it did not write, and stoneware export --strict exits 1 when any route was skipped or any link dangles. In CI, use --strict and the build fails instead of the site.",
       },
 
       { kind: "h2", text: "When a serverless deploy crashes" },
@@ -2493,6 +2493,61 @@ export default function Post({ params }: PageProps) {
       {
         kind: "p",
         text: "If you need a form on an exported site, point it at something that is not Stoneware — a form service, a function on the host, an API on another origin — and drop the <Form> helper for a plain <form>. If you need several such pages, that is the signal to deploy the server build instead.",
+      },
+
+      { kind: "h2", text: "The export checks its own links" },
+      {
+        kind: "p",
+        text: "After the pages are written, the export resolves every same-origin href and src in them against the directory it is about to hand you. Anything that resolves to nothing is named, because a link to a page that was never written is a 404 waiting on a site that otherwise looks finished.",
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "what an incomplete export now says",
+        text: `[stoneware] exported 10 page(s) in 394ms
+  skipped  /divisions/[division] (no staticPaths export)
+
+[stoneware] 7 link(s) point at pages this export did not write:
+  /divisions                   -> /divisions/agro-fresh-produce
+  /divisions                   -> /divisions/spices-seasonings
+  ...
+  Each of these will 404 on the deployed site. A dynamic route needs a
+  staticPaths() export before it can be prerendered.`,
+      },
+      {
+        kind: "p",
+        text: "The skipped line was always printed and is easy to read past — one line among several, informational in tone, on a command that exits 0. The second block is the consequence of it, stated as what a visitor will experience rather than as a fact about the build.",
+      },
+      {
+        kind: "figure",
+        label: "what it reports, and what it deliberately ignores",
+        text: `  reported                       ignored
+  ──────────────────────────     ──────────────────────────
+  a page never written           a page that was written
+  a typo in an href              an external origin
+  a missing image or asset       ?query and #fragment
+                                 a bare #fragment
+                                 the framework's own chunks`,
+      },
+      {
+        kind: "p",
+        text: "src as well as href: a stylesheet or island chunk that is not there presents as \"the CSS is broken\" rather than as a missing file, and that is the harder of the two to diagnose from the outside.",
+      },
+
+      { kind: "h2", text: "Failing the build instead: --strict" },
+      {
+        kind: "code",
+        language: "sh",
+        label: "in CI",
+        text: `stoneware export --strict`,
+      },
+      {
+        kind: "p",
+        text: "Exits 1 if any route was skipped or any link dangles. Without it the export still exits 0 and still prints everything above — because a project may legitimately prerender some routes and serve others, and failing that build would be wrong. --strict is how you say this site is meant to be complete.",
+      },
+      {
+        kind: "quote",
+        text: "The pages that could be written still are, with or without the flag. The report is a warning about the output, not a refusal to produce it — a site with one broken section is still worth having while you fix the section.",
       },
 
       { kind: "h2", text: "Deploying the directory" },
