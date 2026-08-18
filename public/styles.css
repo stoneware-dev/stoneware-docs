@@ -581,7 +581,10 @@ code {
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  /* Exactly four entries, and auto-fit dropped to three tracks once the hero
+     reserved a column for the kiln - leaving one stat alone on a second row.
+     Four stated columns, then a 2x2 when that stops fitting. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1px;
   margin: 2.4rem 0 0;
   background: var(--line-soft);
@@ -590,9 +593,20 @@ code {
   overflow: hidden;
 }
 
+@media (max-width: 56rem) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .stat {
   background: var(--grad-surface);
   padding: 1.1rem 1.15rem 1.2rem;
+  /* One label wraps to two lines where the others do not. The grid already
+     makes the cells equal height, so pinning the value to the bottom aligns
+     all four numbers without assuming how many lines a label takes. */
+  display: flex;
+  flex-direction: column;
 }
 
 .stat dt {
@@ -605,7 +619,7 @@ code {
 }
 
 .stat dd {
-  margin: 0;
+  margin: auto 0 0;
   font-size: 1.5rem;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
@@ -1626,5 +1640,228 @@ code {
 @media (max-width: 34rem) {
   .prose :is(p, li, td) {
     overflow-wrap: anywhere;
+  }
+}
+
+/* --- The kiln ------------------------------------------------------------- */
+
+/* A route going in and fired HTML coming out, in the column the hero was
+   leaving empty. It argues the headline rather than decorating it.
+
+   Typed with steps() and a width, so the panel claiming zero JavaScript ships
+   zero JavaScript. Character counts live here rather than in style attributes,
+   which the default policy would refuse - the same reason the .rise delays do. */
+
+.kiln {
+  margin-top: 3rem;
+  max-width: 30rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--stone-850) 88%, transparent);
+  box-shadow:
+    0 1px 0 color-mix(in oklab, var(--celadon) 14%, transparent) inset,
+    0 24px 60px -30px rgb(0 0 0 / 0.55);
+  overflow: hidden;
+}
+
+.kiln__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid var(--line-soft);
+  background: color-mix(in oklab, var(--stone-800) 60%, transparent);
+}
+
+/* Three discs, drawn rather than marked up: they are furniture, not content. */
+.kiln__dots {
+  width: 2.4rem;
+  height: 0.5rem;
+  background-image: radial-gradient(circle, var(--line) 45%, transparent 47%);
+  background-size: 0.8rem 0.8rem;
+  background-repeat: repeat-x;
+}
+
+.kiln__file {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--ash-dim);
+}
+
+.kiln__code,
+.kiln__out {
+  margin: 0;
+  padding: 0.95rem 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  line-height: 1.85;
+  overflow-x: auto;
+}
+
+.kiln__out {
+  padding-top: 0.75rem;
+  color: var(--mint);
+}
+
+/* Each line reveals by width, one character at a time. */
+.kiln__line {
+  display: block;
+  width: 0;
+  overflow: hidden;
+  white-space: pre;
+  color: var(--chalk);
+  animation: type var(--dur) steps(var(--n)) var(--at) both;
+}
+
+.kiln__code .kiln__line:nth-child(1) { --n: 32; --dur: 0.85s; --at: 0.5s; }
+.kiln__code .kiln__line:nth-child(2) { --n: 48; --dur: 1.2s;  --at: 1.4s; }
+.kiln__code .kiln__line:nth-child(3) { --n: 1;  --dur: 0.1s;  --at: 2.65s; }
+
+/* The caret rests on the last source line once the file is written. */
+.kiln__code .kiln__line:nth-child(3)::after {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 1em;
+  margin-left: 0.15em;
+  vertical-align: -0.15em;
+  background: var(--celadon);
+  animation: caret 1.05s steps(1) 2.75s infinite;
+}
+
+.kiln__line--out {
+  --n: 38;
+  --dur: 0.9s;
+  --at: 3.35s;
+  color: var(--mint);
+}
+
+@keyframes type {
+  from { width: 0; }
+  to   { width: calc(var(--n) * 1ch); }
+}
+
+@keyframes caret {
+  0%, 50%  { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* The seam between what you wrote and what was served. The rule fills across
+   as the firing happens, which is the same gradient the masthead uses. */
+.kiln__seam {
+  position: relative;
+  margin: 0;
+  height: 1px;
+  background: var(--line-soft);
+}
+
+.kiln__seam::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: var(--grad-glaze);
+  animation: seam 0.7s ease-out 2.85s both;
+}
+
+@keyframes seam {
+  to { width: 100%; }
+}
+
+.kiln__seam-label {
+  position: absolute;
+  top: -0.55rem;
+  left: 1rem;
+  padding: 0 0.45rem;
+  background: var(--stone-850);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ash-dim);
+}
+
+.kiln__meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  /* Hairline gaps over the shared background draw every divider at once, so a
+     2x2 needs no per-cell border rules. */
+  gap: 1px;
+  margin: 0;
+  padding-top: 1px;
+  background: var(--line-soft);
+  animation: rise 0.6s cubic-bezier(0.16, 0.84, 0.28, 1) 4.1s both;
+}
+
+.kiln__meta > div {
+  padding: 0.7rem 1rem;
+  background: var(--stone-850);
+}
+
+.kiln__meta dt {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ash-dim);
+}
+
+.kiln__meta dd {
+  margin: 0.2rem 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  color: var(--chalk);
+}
+
+/* The whole argument, in one value. */
+/* Qualified, because `.kiln__meta dd` outranks a lone class and was repainting
+   these back to chalk - and the two zeros are the whole point of the panel. */
+.kiln__meta dd.kiln__zero {
+  color: var(--celadon);
+}
+
+/* Wide enough for two columns: the hero text keeps its measure and the kiln
+   takes the space that was empty. */
+@media (min-width: 68rem) {
+  /* Reserve the column, then take the panel out of flow into it. A grid span
+     was the first attempt:  resolves to row 1 alone when
+     only columns are declared, so the panel stretched the first row and pushed
+     the headline half a screen down. */
+  .hero {
+    padding-right: calc(var(--gutter) + 30rem);
+  }
+
+  .kiln {
+    position: absolute;
+    /* The same clamp the hero uses for its own top padding, so the panel
+       starts level with the eyebrow instead of centring on a 1000px column
+       and landing below the fold. */
+    top: clamp(4rem, 12vh, 9rem);
+    right: var(--gutter);
+    width: 27rem;
+    margin-top: 0;
+  }
+}
+
+/* Typing is decoration on a panel whose content is the point. Reduced motion
+   gets the finished state immediately. */
+@media (prefers-reduced-motion: reduce) {
+  .kiln__line {
+    width: auto;
+    animation: none;
+  }
+
+  .kiln__seam::before,
+  .kiln__code .kiln__line:nth-child(3)::after {
+    animation: none;
+  }
+
+  .kiln__seam::before {
+    width: 100%;
+  }
+
+  .kiln__meta {
+    animation: none;
   }
 }

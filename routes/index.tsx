@@ -158,6 +158,59 @@ export default function Home({ request }: PageProps) {
           <span>Glaze</span>
           <span>Vitrified</span>
         </div>
+
+        {/* The kiln: a route going in and fired HTML coming out.
+
+            It sits in the column the hero was leaving empty, and it argues the
+            headline rather than decorating it — you watch a template become a
+            document with nothing shipped alongside it. Typed in CSS with
+            steps(), so the panel that claims zero JavaScript is itself zero
+            JavaScript. Per-line widths live in the stylesheet because a style
+            attribute would be refused by the default policy. */}
+        <aside class="kiln">
+          <header class="kiln__bar">
+            <span class="kiln__dots" aria-hidden="true" />
+            <span class="kiln__file">routes/index.tsx</span>
+          </header>
+
+          <div class="kiln__code">
+            <span class="kiln__line">export default function Page() {"{"}</span>
+            <span class="kiln__line">{"  return <article>Fired, not shipped.</article>;"}</span>
+            <span class="kiln__line">{"}"}</span>
+          </div>
+
+          <p class="kiln__seam">
+            <span class="kiln__seam-label">firing</span>
+          </p>
+
+          <div class="kiln__out">
+            <span class="kiln__line kiln__line--out">
+              {"<article>Fired, not shipped.</article>"}
+            </span>
+          </div>
+
+          {/* What that route costs, for the page above and nothing else. The
+              two zeros are the argument; the other two are there so they are
+              read as measurements rather than as a slogan. */}
+          <dl class="kiln__meta">
+            <div>
+              <dt>HTML</dt>
+              <dd>1.1 KB</dd>
+            </div>
+            <div>
+              <dt>JavaScript</dt>
+              <dd class="kiln__zero">0 B</dd>
+            </div>
+            <div>
+              <dt>Requests</dt>
+              <dd>1</dd>
+            </div>
+            <div>
+              <dt>Hydrated nodes</dt>
+              <dd class="kiln__zero">0</dd>
+            </div>
+          </dl>
+        </aside>
       </section>
 
       <section class="shell section reveal">
