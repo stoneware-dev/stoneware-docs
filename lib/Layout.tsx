@@ -87,7 +87,7 @@ export function Layout({ title, description, section = "home", theme, children }
         <footer class="shell colophon">
           <span>
             Rendered on the server by stoneware. This page runs under the framework's default
-            Content-Security-Policy, unmodified.
+            Content-Security-Policy.
           </span>
           <span>
             Documentation for <a href={REPO_URL}>{REPO_SLUG}</a> · <a href="/docs">Docs</a> ·{" "}

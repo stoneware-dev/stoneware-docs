@@ -94,6 +94,34 @@ const PRINCIPLES = [
   },
 ];
 
+/**
+ * Deliberately four capabilities rather than a claim about rankings. Each one
+ * is either enforced by the build or checkable in the served HTML — nothing
+ * here rests on how a search engine happens to weight anything this quarter.
+ */
+const SEO_POINTS = [
+  {
+    point: "The document is complete in the first response",
+    detail:
+      "A crawler that never runs JavaScript still sees every word, because nothing is assembled on the client. What you get with curl is what gets indexed.",
+  },
+  {
+    point: "One call writes the whole head",
+    detail:
+      "seo() covers canonical, robots, hreflang alternates, Open Graph with article metadata, X cards and JSON-LD. Call it from the wrong place and the tags land in <body>, where nothing reads them — so the dev server warns you, naming the route.",
+  },
+  {
+    point: "A page with no islands has no script to block on",
+    detail:
+      "No runtime to fetch and parse, and no hydration pass between the HTML arriving and the page being usable. Not a small runtime — no script tag at all.",
+  },
+  {
+    point: "The export names your broken internal links",
+    detail:
+      "Links pointing at pages the static export did not write are reported at build time, rather than found by a crawler weeks after they shipped.",
+  },
+];
+
 const ISLAND_EXAMPLE = `// islands/Counter.tsx — the only file here that ships JS
 import { signal } from "stoneware/signals";
 
@@ -285,6 +313,32 @@ export default function Home({ request }: PageProps) {
             </p>
           </div>
         </div>
+      </section>
+
+      {/* SEO as consequence, not as a pitch. The framing matters: naming this
+          "the SEO framework" would be a claim about search engines, which is
+          not ours to make and dates badly. Each point below is enforced by the
+          build or visible in the served HTML. */}
+      <section class="shell section reveal">
+        <div class="section__head">
+          <p class="eyebrow">Content sites</p>
+          <h2>Built for pages that have to be found</h2>
+          <p>
+            None of this is an SEO feature bolted on. It follows from rendering the whole document
+            on the server and shipping no runtime alongside it.
+          </p>
+        </div>
+        <dl class="problems problems--wins">
+          {SEO_POINTS.map((entry) => (
+            <div class="problem">
+              <dt>{entry.point}</dt>
+              <dd>{entry.detail}</dd>
+            </div>
+          ))}
+        </dl>
+        <p class="demo-note">
+          <a href="/docs/seo">The full seo() reference →</a>
+        </p>
       </section>
 
       <section class="shell section reveal">

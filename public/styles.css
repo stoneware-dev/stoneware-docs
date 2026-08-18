@@ -685,6 +685,13 @@ code {
   font-size: 0.9rem;
 }
 
+/* The same claim-over-evidence block used for things the framework gives you
+   rather than things it complains about, so the cross would read backwards. */
+.problems--wins .problem dt::before {
+  content: "+";
+  color: var(--celadon);
+}
+
 .problem dd {
   margin: 0;
   padding-left: 1.1rem;
