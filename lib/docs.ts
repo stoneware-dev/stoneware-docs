@@ -198,9 +198,9 @@ export const DOCS: DocPage[] = [
         items: [
           "Genuinely app-like UI — a dashboard, an editor, anything with heavy shared client state. Use a SPA framework; that is what they are good at.",
           "You need client-side routing. Stoneware does full page loads.",
-          "You need streaming SSR, resumability, or partial rendering. Deliberately deferred for v0.1.",
+          "You need streaming SSR, resumability, or partial rendering. Each was considered and deliberately deferred; none is on the roadmap for 0.x.",
           "You are not on Bun. Stoneware is Bun-native by design, not Node-compatible-via-Bun.",
-          "You need a large plugin ecosystem. This is v0.1; there isn't one.",
+          "You need a large plugin ecosystem. This is a 0.x framework; there isn't one.",
         ],
       },
       {
@@ -267,7 +267,7 @@ export default function Home({ params }: PageProps) {
     blocks: [
       {
         kind: "p",
-        text: "A new project is twelve files. There is no hidden state, no lockfile-adjacent cache to understand, and nothing generated that you are not meant to read.",
+        text: "A new project is sixteen files. There is no hidden state, no lockfile-adjacent cache to understand, and nothing generated that you are not meant to read.",
       },
       {
         kind: "figure",
@@ -276,21 +276,29 @@ export default function Home({ params }: PageProps) {
 │
 ├── routes/                    Server-only. Never ships JavaScript.
 │   ├── index.tsx              A page. Maps to "/"
-│   └── _404.tsx               Shown for any path that does not match.
-│                              Leading _ means it is not itself a page.
+│   ├── _404.tsx               Shown for any path that does not match.
+│   │                          Leading _ means it is not itself a page.
+│   ├── robots.txt.ts          A route that returns text rather than HTML,
+│   │                          so it is written at its literal path.
+│   └── sitemap.xml.ts         Built with sitemap(). Add the pages you
+│                              publish to the list it exports.
 │
 ├── islands/                   The only place client JS originates.
 │   └── Counter.tsx            Hydrates on load. Gets its own bundle.
 │
 ├── lib/                       Behavior functions and shared utilities.
+│   └── site.ts                SITE_URL, for canonical links and the sitemap.
 │                              Ships JS only if an island imports it.
 │
 ├── public/                    Served as-is, at the URL root.
-│   └── styles.css             -> GET /styles.css
+│   ├── styles.css             -> GET /styles.css
+│   ├── favicon.ico            -> GET /favicon.ico
+│   └── mark.svg               -> GET /mark.svg
 │
-├── stoneware.config.ts             Port, CSP override, CSRF settings.
+├── stoneware.config.ts        Port, CSP override, CSRF settings.
 ├── tsconfig.json              jsx: "react-jsx", jsxImportSource: "stoneware"
 ├── package.json               scripts: dev / build / start
+├── README.md                  The commands, and where the docs live.
 │
 ├── .env                       STONEWARE_CSRF_SECRET, generated unique. Gitignored.
 ├── .env.example               Tracked template, no value.
@@ -375,15 +383,19 @@ export default function Home({ params }: PageProps) {
         label: "one request, start to finish",
         text: `  Request
      │
-     ├─ /_stoneware/*  ─────────────────►  built island chunk        (Bun.file)
+     ├─ /_stoneware/*  ────────────►  built island chunk        (Bun.file)
      │
      ├─ matches public/  ──────────►  static asset              (Bun.file)
      │
+     ├─ CORS preflight  ───────────►  204            OPTIONS only
+     │
+     ├─ CSRF verify        ◄─────── every non-GET request, before the
+     │      └─ invalid  ───────────►  403      router has even matched it
+     │
+     ├─ routes/_middleware.ts  ────►  its Response, if it returns one
+     │
      ├─ router.match(pathname)
      │      └─ no match  ──────────►  404
-     │
-     ├─ CSRF verify        ◄─────── every non-GET request, before any
-     │      └─ invalid  ───────────►  403      handler can observe it
      │
      ├─ action route  ─────────────►  POST/PUT/DELETE handler ──┐
      │                                                          │
@@ -444,7 +456,8 @@ export default function Home({ params }: PageProps) {
 </button>
 
 <script type="application/json" id="stoneware-islands">
-  [{"name":"LiveCounter","id":"stoneware-1","props":{}}]
+  {"islands":[{"name":"LiveCounter","id":"stoneware-1","props":{}}],
+   "chunks":{}}
 </script>
 
 <script type="module" src="/_stoneware/LiveCounter-6dhtkfqt.js"></script>`,
@@ -1502,7 +1515,7 @@ styles.button  // bundler: "Counter_button_a1b2c3"
       },
       {
         kind: "p",
-        text: "Rather than ship scoping that works in one half of a render and silently fails in the other, v0.1 does not offer it. Scoping is naming discipline for now — a prefix per component is enough at this size, and real scoping can arrive later without changing where files live.",
+        text: "Rather than ship scoping that works in one half of a render and silently fails in the other, Stoneware does not offer it. Scoping is naming discipline for now — a prefix per component is enough at this size, and real scoping can arrive later without changing where files live.",
       },
     ],
   },
@@ -2012,7 +2025,7 @@ islands/Counter.tsx:3:10
         text: `$ stoneware doctor
 
   ok    Bun 1.3.14
-  ok    stoneware 0.1.5
+  ok    stoneware 0.2.0
   FAIL  tsconfig compilerOptions.jsxImportSource is "react", expected "stoneware"
         JSX will compile against React's runtime. This does not fail at build
         time - it fails mid-render as a TypeError about an object, pointing at
