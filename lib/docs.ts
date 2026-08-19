@@ -2826,7 +2826,8 @@ if (!existsSync(resolve(process.cwd(), ".stoneware/islands.json"))) {
     about/index.html            /about
     blog/hello/index.html       /blog/hello
     404.html                    any unmatched path
-    _headers                    CSP, for hosts that read it
+    _headers                    CSP and the security headers,
+                                for hosts that read it
     _stoneware/
       styles-4kq2n7wd.css       the bundled stylesheet
       Counter-6eq2vxv9.js       one chunk per island
@@ -2900,8 +2901,9 @@ export default function Post({ params }: PageProps) {
                           baking one into a file would ship a
                           single token to everyone, then expire.
 
-  server action           routes/api/* has no HTML to write and
-                          nothing to answer a POST with.
+  server action           a route with no GET handler — an
+                          api/ route answering POST — has no
+                          HTML to write.
 
   no staticPaths export   a [slug] route with no list of pages
                           to write.`,
@@ -2918,7 +2920,7 @@ export default function Post({ params }: PageProps) {
       { kind: "h2", text: "The export checks its own links" },
       {
         kind: "p",
-        text: "After the pages are written, the export resolves every same-origin href and src in them against the directory it is about to hand you. Anything that resolves to nothing is named, because a link to a page that was never written is a 404 waiting on a site that otherwise looks finished.",
+        text: "After the pages are written, the export resolves every site-absolute href and src in them — anything beginning with a single / — against the directory it is about to hand you. Anything that resolves to nothing is named, because a link to a page that was never written is a 404 waiting on a site that otherwise looks finished.",
       },
       {
         kind: "code",
@@ -2947,7 +2949,7 @@ export default function Post({ params }: PageProps) {
   a typo in an href              an external origin
   a missing image or asset       ?query and #fragment
                                  a bare #fragment
-                                 the framework's own chunks`,
+                                 a relative href`,
       },
       {
         kind: "p",
@@ -3000,7 +3002,7 @@ aws s3 sync dist s3://your-bucket --delete`,
       },
       {
         kind: "p",
-        text: "The generated _headers file carries the full Content-Security-Policy for the hosts that read one. Everywhere else the policy still applies through the meta tag every page carries, minus three directives — frame-ancestors, report-uri and sandbox — which browsers ignore in a meta tag and which the export names explicitly rather than pretending to enforce.",
+        text: "The generated _headers file carries the full Content-Security-Policy and the rest of the security headers — X-Content-Type-Options, Referrer-Policy and X-Frame-Options — so a host that reads it restores everything the server would have sent. Everywhere else the policy still applies through the meta tag every page carries, minus four directives: frame-ancestors, report-uri, report-to and sandbox, which browsers ignore in a meta tag and which the export names explicitly rather than pretending to enforce.",
       },
       {
         kind: "quote",
