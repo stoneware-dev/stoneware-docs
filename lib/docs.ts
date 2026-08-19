@@ -935,6 +935,54 @@ export const subscriberCount = signal(1284);`,
         kind: "quote",
         text: "It is serialized into a application/ld+json block, which browsers parse as data and never execute — the same mechanism the island payload uses, and the reason it needs no CSP exception. The serializer escapes <, > and the line separators, so a value cannot close the element and inject markup.",
       },
+
+      { kind: "h2", text: "sitemap()" },
+      {
+        kind: "p",
+        text: "seo() covers one page. sitemap() covers which pages exist. Added in 0.2.0, and it replaced a scaffolded route that held a hand-written array of paths — a list that is wrong by the second page you publish.",
+      },
+      {
+        kind: "code",
+        language: "ts",
+        label: "routes/sitemap.xml.ts",
+        text: `import { sitemap } from "stoneware";
+import { SITE_URL } from "../lib/site.ts";
+import { POSTS } from "../lib/posts.ts";
+
+export function GET(): Response {
+  return sitemap(
+    [
+      { url: "/", changeFrequency: "weekly", priority: 1 },
+      ...POSTS.map((post) => ({
+        url: \`/blog/\${post.slug}\`,
+        lastModified: post.published,
+      })),
+    ],
+    { origin: SITE_URL },
+  );
+}`,
+      },
+      {
+        kind: "p",
+        text: "Derive the entries from the same data the pages render, and the sitemap cannot drift from the site. Every field except url is optional: lastModified takes a Date or a string, changeFrequency takes the seven values the schema allows, and priority is 0 to 1 relative to your own other pages rather than to anyone else's.",
+      },
+      {
+        kind: "list",
+        items: [
+          "URLs are XML-escaped — including the apostrophe, which is legal in a URL and illegal unescaped in XML. Bun.escapeHTML is the wrong tool here and produces a document some parsers reject.",
+          "A path is resolved against origin. Passing one with no origin is refused rather than emitted, because a relative loc parses fine and no crawler can use it.",
+          "A date-only string is passed through unchanged. Round-tripping it through Date would shift it by the local UTC offset and publish the wrong day for half the world.",
+          "Duplicates are written once, an out-of-range priority is refused, and more than 50,000 entries is refused with a pointer to sitemap indexes.",
+        ],
+      },
+      {
+        kind: "quote",
+        text: "It does not enumerate your routes for you. The framework knows every pattern, so it could — but it cannot know which ones belong in a sitemap. A checkout confirmation, a page behind a login, an archive you would rather have crawled through links: all routes, none of them entries. That is an editorial decision, and a guess at it would produce a file that is confidently wrong.",
+      },
+      {
+        kind: "p",
+        text: "sitemapXML() returns the same document as a string, for writing to a file, snapshotting in a test, or nesting inside a sitemap index.",
+      },
     ],
   },
 
@@ -1768,6 +1816,18 @@ islands/Counter.tsx:3:10
         kind: "p",
         text: "Sizes are reported per island. JavaScript being opt-in is only a claim you can check if the cost is shown next to the name of the thing that caused it.",
       },
+      {
+        kind: "p",
+        text: "stoneware start runs that bundle. From 0.2.0 it takes --workers, which runs several processes behind one shared port. The default is one, and it is Linux-only — see deploying for why, and for what workers do not share.",
+      },
+      {
+        kind: "code",
+        language: "sh",
+        label: "terminal",
+        text: `$ stoneware start --workers 4
+
+[stoneware] serving on http://0.0.0.0:3000 (4 workers)`,
+      },
 
       { kind: "h2", text: "What gets minified, and what deliberately does not" },
       {
@@ -2077,6 +2137,45 @@ Bun.serve({
   hostname: Bun.env.HOST ?? "0.0.0.0",
   fetch: (request) => app.fetch(request),
 });`,
+      },
+
+      { kind: "h2", text: "Using more than one core" },
+      {
+        kind: "p",
+        text: "One Bun.serve uses one core. From 0.2.0, workers runs several processes behind a shared port and lets the kernel spread connections across them. The default is one process — this is opt-in, and nothing scales itself at runtime.",
+      },
+      {
+        kind: "code",
+        language: "sh",
+        text: `stoneware start --workers 4      # explicit
+WEB_CONCURRENCY=4 stoneware start  # what Heroku, Render and Railway set
+                                # or workers: 4 in stoneware.config.ts
+                                # or workers: "auto" for one per core`,
+      },
+      {
+        kind: "p",
+        text: "WEB_CONCURRENCY is read because those platforms already set it to say how many processes a plan's memory allows, so changing plan scales the app with no code change. An explicit --workers beats it, and a value that is not a positive integer is ignored rather than fatal — it comes from a platform, not from your project, and refusing to boot over it would trade a working single process for an outage.",
+      },
+      {
+        kind: "quote",
+        text: "Linux only. reusePort is accepted by Bun.serve everywhere and load-balances on Linux alone — on Windows two processes bind the same port and the first receives every connection. Anywhere it does not balance, the count falls back to 1 and the reason is printed, because N processes serving from one of them is worse than one process and invisible otherwise.",
+      },
+      {
+        kind: "p",
+        text: "Workers share nothing. A counter, cache or rate-limit tally in a module-level variable becomes one copy per worker, and consecutive requests from one visitor may be answered by different ones. Put anything that has to be consistent in a database.",
+      },
+      {
+        kind: "p",
+        text: "The CSRF secret is the exception that proves the rule: it comes from the environment, so it is identical in every worker, and a token issued by one verifies on any other. That is why it has to keep coming from there rather than being generated per process.",
+      },
+      {
+        kind: "list",
+        items: [
+          "A worker that exits is restarted, and after five restarts in ten seconds it stops being restarted — a process that crashes on boot would otherwise be respawned forever.",
+          "SIGINT and SIGTERM on the primary stop every worker and release the port. A SIGKILL cannot be intercepted, so there the process manager kills the group.",
+          "Requests in flight are not drained on shutdown. Behind a load balancer that stops routing first this is fine; it is not a true graceful drain.",
+          "Development never clusters, whatever the setting says. The dev server watches files and holds a live-reload socket, and several copies would each rebuild on every save.",
+        ],
       },
 
       { kind: "h2", text: "Behind a proxy that terminates TLS" },
@@ -2592,12 +2691,193 @@ aws s3 sync dist s3://your-bucket --delete`,
   {
     slug: "whats-new",
     title: "What's new",
-    summary: "0.1.8 — the client chunks finally reach a deployed site, and a URL can no longer make the server answer 500.",
+    summary:
+      "0.2.0 — a sitemap you do not maintain by hand, serving from more than one process, and two silent failures that now say something.",
+    blocks: [
+      { kind: "h2", text: "0.2.0" },
+      {
+        kind: "p",
+        text: "Four additions and one behaviour change worth reading before you upgrade. Most of this came out of measuring the framework rather than using it, which is why two entries are about things that were quietly wrong rather than missing.",
+      },
+
+      { kind: "h2", text: "sitemap()" },
+      {
+        kind: "p",
+        text: "The scaffold used to ship a route holding a hand-written list of paths and a comment asking you to keep it current. That is a sitemap that is wrong by the second page, and wrong is worse than absent — a sitemap listing URLs that 404 is a signal search engines act on.",
+      },
+      {
+        kind: "code",
+        language: "ts",
+        label: "routes/sitemap.xml.ts",
+        text: `import { sitemap } from "stoneware";
+import { SITE_URL } from "../lib/site.ts";
+import { POSTS } from "../lib/posts.ts";
+
+export function GET(): Response {
+  return sitemap(
+    [
+      { url: "/", changeFrequency: "weekly", priority: 1 },
+      ...POSTS.map((post) => ({
+        url: \`/blog/\${post.slug}\`,
+        lastModified: post.published,
+      })),
+    ],
+    { origin: SITE_URL },
+  );
+}`,
+      },
+      {
+        kind: "p",
+        text: "It owns the parts that are easy to get wrong by hand: XML escaping, absolute URLs, W3C date formats, the value ranges the schema allows, duplicate removal, and the 50,000-URL ceiling. An apostrophe is legal in a URL and must be escaped in XML, which is why Bun.escapeHTML is the wrong tool here — and why a hand-rolled version usually validates until the first query string with an ampersand in it.",
+      },
+      {
+        kind: "p",
+        text: "What it deliberately does not do is enumerate your routes. The framework knows every pattern, so it could — but it cannot know which ones belong in a sitemap. A checkout confirmation, a page behind a login, an archive you would rather have crawled through links: all routes, none of them entries. Deciding what should be indexed is an editorial call, and guessing would produce a file that is confidently wrong.",
+      },
+      {
+        kind: "p",
+        text: "Passing a path with no origin is refused rather than emitted, because a relative loc parses fine and no crawler can use it.",
+      },
+
+      { kind: "h2", text: "Serving from more than one process" },
+      {
+        kind: "p",
+        text: "A single Bun.serve uses one core. The new workers setting runs several processes behind a shared port and lets the kernel spread connections across them. One process is still the default, and nothing scales itself at runtime.",
+      },
+      {
+        kind: "code",
+        language: "sh",
+        text: `stoneware start --workers 4      # or WEB_CONCURRENCY=4
+                                # or workers: 4 in stoneware.config.ts
+                                # or workers: "auto" for one per core`,
+      },
+      {
+        kind: "p",
+        text: "Linux only, and it says so out loud. reusePort is accepted by Bun.serve on every platform and load-balances on one. Measured on Bun 1.3.14: on Windows two processes bind the same port without error and the first receives every connection — thirty requests, thirty answered by the same worker. On Linux, four hundred requests spread 112 / 90 / 104 / 94 across four workers.",
+      },
+      {
+        kind: "figure",
+        label: "the same option, two platforms",
+        text: `  Windows                        Linux
+  ─────────────────────────      ─────────────────────────
+  worker A  ██████████ 30        worker A  ███ 104
+  worker B  ·           0        worker B  ███  90
+  worker C  ·           0        worker C  ███  94
+  worker D  ·           0        worker D  ███ 112
+
+  binds, reports success,        what the option is for
+  serves from one`,
+      },
+      {
+        kind: "p",
+        text: "So on any platform where that is true, the count falls back to 1 and prints the reason. N processes taking N times the memory and serving from one of them is worse than one process, and it is invisible unless something says so.",
+      },
+      {
+        kind: "p",
+        text: "Measured on Linux: roughly 1.6x to 2.2x the requests per second at two to four workers. It is not linear, and the ceiling is unmeasured — the load generator shared the machine with the server, so the client gives out before the server does. A real number needs a second machine, and this one is a floor.",
+      },
+      {
+        kind: "quote",
+        text: "Workers share nothing. A counter or cache in a module-level variable becomes one copy per worker, and consecutive requests from one visitor may be answered by different ones. Anything that has to be consistent belongs in a database — or in the environment, as the CSRF secret already is.",
+      },
+      {
+        kind: "p",
+        text: "That last part is load-bearing rather than incidental. A CSRF token issued by one worker verifies on another because both read the same secret from the environment, which is exactly why the secret has to keep coming from there. Checked across 1, 2, 4 and 8 workers: every token accepted, forged and missing tokens still refused.",
+      },
+
+      { kind: "h2", text: "Two silent failures now say something" },
+      {
+        kind: "p",
+        text: "A route that renders its own document with no head element used to lose the bundled stylesheet, the whole of its head() export — title, canonical, Open Graph, JSON-LD — every preload, and the CSP meta tag on export. The page rendered unstyled and unindexable, and nothing anywhere said why. It looked like a CSS bug.",
+      },
+      {
+        kind: "figure",
+        label: "what the page lost, silently",
+        text: `  <html lang="en">
+    <body>          ← no <head> to inject into
+      ...
+    </body>
+  </html>
+
+  dropped:  stylesheet · title · canonical · og:* · JSON-LD
+            preloads · CSP meta
+  said:     nothing`,
+      },
+      {
+        kind: "p",
+        text: "It now warns, naming the route and listing exactly what was dropped — in production as well as development, because the consequence is a live page with no styling and no metadata and the person running it is the one who needs to know. Warned once per route rather than once per request, since a warning on every request under load is its own outage.",
+      },
+      {
+        kind: "p",
+        text: "The second: a document whose html element is not the first thing in its output — a comment or stray text ahead of the tag — was treated as a fragment and wrapped in a second document, producing nested html and body elements. That one warns in development, where it belongs, since it is an authoring mistake rather than a deployment one.",
+      },
+      {
+        kind: "p",
+        text: "Neither changes what is rendered. They are diagnostics, not repairs; changing the output would break anyone relying on the current behaviour.",
+      },
+
+      { kind: "h2", text: "Static serving does far less work" },
+      {
+        kind: "p",
+        text: "Every page request paid a synchronous existsSync against public/ that was always going to miss, and serving a file cost four filesystem round trips with nothing cached. Serving a stylesheet was measurably slower than rendering a whole page.",
+      },
+      {
+        kind: "figure",
+        label: "framework request handling, measured in process",
+        text: `                    before     after
+  ───────────────────────────────────────
+  page     p50       0.142ms   0.071ms
+           p99       1.071ms   0.222ms
+  asset    p50       0.465ms   0.149ms
+           p99       4.287ms   1.458ms`,
+      },
+      {
+        kind: "p",
+        text: "Read that honestly: it halves the framework's own cost and does not measurably change end-to-end throughput, because the framework is roughly a seventh of an HTTP request and the rest is the runtime's socket handling. The tail over HTTP is Bun's — a bare Bun.serve returning a fixed string has about 2.2x the p99 of a bare node:http server doing the same thing. That is not something a framework can fix from the inside.",
+      },
+      {
+        kind: "p",
+        text: "The public/ listing is read once at startup in production, never in development, and a directory containing symlinks opts out of indexing entirely rather than guess at what a link points to. It is a negative filter and nothing more: a path it does not contain is answered as a miss, and a path it does contain goes through every traversal, symlink and dotfile check exactly as before.",
+      },
+
+      { kind: "h2", text: "One behaviour change to know about" },
+      {
+        kind: "quote",
+        text: "In production, public/ is read once at startup. A file written into it by a running process — an upload, say — is not served until the server restarts. Development is unchanged and re-reads on every request.",
+      },
+      {
+        kind: "p",
+        text: "For the normal case, where public/ is part of what you deploy, none of this is visible. If you write user uploads into public/ at runtime, serve them from a route or object storage instead — which is where they belonged anyway, since a second worker would not see them either.",
+      },
+
+      { kind: "h2", text: "Also in 0.2.0" },
+      {
+        kind: "list",
+        items: [
+          "The built server entry now goes through serve() rather than calling Bun.serve itself. It was a second definition of how the server boots, and the multi-process path silently did not apply to it.",
+          "listen() refuses allowPortFallback and reusePort together. They want opposite things when a port is busy, and quietly picking one would make a clustered server bind a different port per worker and look like it was working.",
+          "A non-numeric WEB_CONCURRENCY is ignored rather than fatal. It comes from a platform, not from your project, and refusing to boot over it would trade a working single process for an outage.",
+          "601 tests, up from 519.",
+        ],
+      },
+
+      { kind: "h2", text: "Earlier versions" },
+      {
+        kind: "p",
+        text: "0.1.8, 0.1.7 and 0.1.6 each have their own page, 0.1.5 and 0.1.4 share one, and 0.1.3 and 0.1.2 are on past releases.",
+      },
+    ],
+  },
+
+  {
+    slug: "v0-1-8",
+    title: "v0.1.8",
+    summary: "The client chunks finally reach a deployed site, and a URL can no longer make the server answer 500.",
     blocks: [
       { kind: "h2", text: "0.1.8" },
       {
         kind: "p",
-        text: "Not published yet. npm still installs 0.1.7. Two fixes, and the first of them is the one that has been quietly breaking deployed sites since islands existed.",
+        text: "Published. Two fixes, and the first of them is the one that had been quietly breaking deployed sites since islands existed.",
       },
 
       { kind: "h2", text: "The client chunks finally reach a deployed site" },
@@ -2692,7 +2972,7 @@ aws s3 sync dist s3://your-bucket --delete`,
       { kind: "h2", text: "0.1.7" },
       {
         kind: "p",
-        text: "Not published yet. npm still installs 0.1.6, which is what this site runs on. Six changes: two deploy failures, two diagnostics, and two things you could not do at all. Every one of them surfaced while building and deploying a real site rather than in a test.",
+        text: "Six changes: two deploy failures, two diagnostics, and two things you could not do at all. Every one of them surfaced while building and deploying a real site rather than in a test.",
       },
 
       { kind: "h2", text: "A deployed site keeps its CSS and its islands" },
@@ -3941,7 +4221,7 @@ export const DOC_GROUPS: DocGroup[] = [
   },
   {
     label: "Releases",
-    slugs: ["whats-new", "v0-1-7", "v0-1-6", "v0-1-4-v0-1-5", "past-releases"],
+    slugs: ["whats-new", "v0-1-8", "v0-1-7", "v0-1-6", "v0-1-4-v0-1-5", "past-releases"],
   },
 ];
 
