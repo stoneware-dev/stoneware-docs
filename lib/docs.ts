@@ -4465,8 +4465,154 @@ browser navigates to it        →  the _404 page, as before`,
   {
     slug: "benchmark",
     title: "Benchmark",
-    summary: "The same 16-page site built in Stoneware, Astro and Next.js, measured.",
+    summary: "Two studies: what the server does on 0.2.0, and what a visitor's browser waits for. One named run each, with what varies between runs called out.",
     blocks: [
+      {
+        kind: "p",
+        text: "Two studies, measuring different halves of the same question. The first is what the server does — throughput, latency, memory and build, on Stoneware 0.2.0. The second is what a visitor's browser experiences, measured earlier on 0.1.3 under Lighthouse throttling. Neither replaces the other, and both are reproducible rather than asserted.",
+      },
+
+      { kind: "h2", text: "Study one: what the server does" },
+      {
+        kind: "p",
+        text: "Twenty articles and an index — 42,871 words — built three times from a byte-identical content.json, through a byte-identical stylesheet, into byte-identical markup. Verified: all 21 routes render the same tags and the same text in all three apps, differing only in how each escapes an apostrophe. Measured over HTTP against each framework's own production server.",
+      },
+      {
+        kind: "quote",
+        text: "Every number below comes from one run, named in the file it was taken from. The size figures are deterministic — the same bytes every time — and the timing figures are not. Where a number moves between runs, this page says so rather than averaging the movement away.",
+      },
+      {
+        kind: "figure",
+        label: "Stoneware 0.2.0 · Astro 7.2.2 · Next.js 16.3.1 (App Router)",
+        text: `  an article page — no interactivity, 19 of the 21 routes
+
+                     HTML    gzip       JS   requests
+  ────────────────────────────────────────────────────
+  Stoneware        15.4 KB  2.8 KB      0 B          2
+  Astro            15.2 KB  2.8 KB      0 B          2
+  Next.js          39.9 KB  5.3 KB   576 KB          8`,
+      },
+      {
+        kind: "p",
+        text: "Stoneware and Astro are within a rounding error of each other, because both send a document and nothing else. Next.js sends 576 KB of JavaScript to a page with no interactive element on it at all — and its HTML is two and a half times larger, because 23.4 KB of the document is the article re-encoded as an inline RSC payload. That is 59% of the response, and it is the content going out a second time.",
+      },
+      {
+        kind: "figure",
+        label: "the index — the one page allowed to ship JavaScript",
+        text: `                  HTML gzip       JS   JS gzip  requests
+  ──────────────────────────────────────────────────────
+  Stoneware           3.2 KB  11.3 KB    4.8 KB         4
+  Astro               3.3 KB   0.4 KB    0.3 KB         2
+  Next.js             5.8 KB   577 KB  173.7 KB         9
+
+  Stoneware   an island, hydrated, state in signals
+  Astro       a plain <script> tag — no framework at all
+  Next.js     a "use client" component`,
+      },
+      {
+        kind: "quote",
+        text: "Astro wins this row and the report says so. A script tag beats a hydrated island for one text box, and 0.3 KB against 4.8 KB is not close. Stoneware's 4.8 KB is signals-core plus the hydration runtime, which is the price of the island model rather than an inefficiency in it — but it is a price, and Astro does not pay it here.",
+      },
+      {
+        kind: "figure",
+        label: "the whole site, cold cache — all 21 routes, unique assets counted once",
+        text: `                 HTML   HTML gzip   JS gzip   pages with no JS
+  ───────────────────────────────────────────────────────────────
+  Stoneware    313.1 KB     60.3 KB    4.8 KB           20 of 21
+  Astro        309.9 KB     59.4 KB    0.3 KB           20 of 21
+  Next.js      806.0 KB    112.7 KB  255.3 KB            0 of 21`,
+      },
+
+      { kind: "h2", text: "Build, and what it leaves on disk" },
+      {
+        kind: "figure",
+        label: "cold build — the output directory deleted first",
+        text: `                  build    peak RAM    output   deployable   node_modules
+  ──────────────────────────────────────────────────────────────────────
+  Stoneware        0.49s       88 MB   0.68 MB      0.35 MB           6 MB
+  Astro            5.69s      356 MB   0.31 MB      0.31 MB         136 MB
+  Next.js         16.64s     1143 MB  32.18 MB      6.46 MB         396 MB`,
+      },
+      {
+        kind: "p",
+        text: "Deployable excludes build scratch that never ships — for Next that is cache, trace, types and turbopack inside .next, which is the difference between 32 MB and 6.5 MB. Quoting the larger number would be misleading, so both are here.",
+      },
+      {
+        kind: "quote",
+        text: "The build comparison is not like-for-like and never was. stoneware build emits a server bundle; Astro and Next prerender 21 HTML files. The comparable command is stoneware export. What the column does show honestly is peak memory: 88 MB against 356 and 1143, for the same twenty articles.",
+      },
+
+      { kind: "h2", text: "Latency" },
+      {
+        kind: "figure",
+        label: "time to first byte on an article, 200 sequential requests, loopback",
+        text: `                   p50      p95      p99      max
+  ─────────────────────────────────────────────────
+  Stoneware      1.13ms   3.58ms   4.46ms   4.55ms
+  Astro          1.74ms   2.23ms   3.51ms   3.68ms
+  Next.js        1.84ms   2.51ms   3.80ms   4.26ms`,
+      },
+      {
+        kind: "p",
+        text: "Stoneware has the lowest median and, in this run, the highest p95, p99 and max. That shape — a fast middle and a long tail — is what a JIT and a generational collector look like from the outside, and it is inherited rather than introduced: a bare Bun.serve returning a fixed string has roughly 2.2x the p99 of a bare node:http server doing the same thing. Astro and Next run on Node.",
+      },
+      {
+        kind: "quote",
+        text: "The tail is the least reproducible number on this page. Repeated runs moved Stoneware's p99 by a factor of four while its median barely shifted, and Astro's tail moved too. Rank the medians if you must rank something; do not rank the tails on one run, including this one.",
+      },
+
+      { kind: "h2", text: "Throughput" },
+      {
+        kind: "figure",
+        label: "requests per second, by concurrency",
+        text: `  connections      1      10      25      50     100     250
+  ──────────────────────────────────────────────────────────
+  Stoneware     1443    3047    2483    2060    2236    3355
+  Astro          648    1554    1890    1922    1984    2186
+  Next.js        579     928     827     957     920     879`,
+      },
+      {
+        kind: "p",
+        text: "Read the separation, not the curve. Stoneware is roughly a third above Astro and three to four times Next across the range, and that ordering held in every run. The individual points do not form a clean line — Stoneware's row goes up, down, and up again — because past a few hundred requests per second the load generator is the thing being measured.",
+      },
+      {
+        kind: "quote",
+        text: "These are floors, not ceilings. The load generator runs on the same machine as the server, so both compete for the same twelve cores. A number here is a statement about this harness on this box, not about capacity.",
+      },
+      {
+        kind: "figure",
+        label: "peak resident memory while serving",
+        text: `  Stoneware      166 MB
+  Astro          352 MB     a static file server, not a renderer
+  Next.js        398 MB`,
+      },
+      {
+        kind: "p",
+        text: "Astro's row is measuring a different job. astro preview serves prebuilt files; Stoneware and Next render on each request. It is the right number for that deployment shape and it is not the same work.",
+      },
+
+      { kind: "h2", text: "How these numbers were taken" },
+      {
+        kind: "list",
+        items: [
+          "One run: results/history/2026-08-19T18-24-23.json in the benchmark repository. Sizes are identical in every run; timings are not, and the tail least of all.",
+          "A run is only usable if the machine was quiet. Astro and Next are the control group — their code has not changed — so when their build times move together, the run is measuring the machine. One run was discarded on that basis, with Astro building in 50s against its usual 6s.",
+          "Tailwind and next/font/google were removed from the Next scaffold, so CSS and fonts are constants rather than a second variable.",
+          "The Next app uses plain <a> rather than next/link, which is the lighter of the two options. That makes Next's numbers better than an idiomatic Next app's would be.",
+          "JavaScript counts inline scripts and follows module imports. Next delivers its RSC payload inline and Stoneware's island chunk imports a shared runtime; counting only script tags would under-report both.",
+          "Time to first byte is loopback. Real first-byte time is this plus the round trip to wherever the app is hosted.",
+        ],
+      },
+      {
+        kind: "p",
+        text: "Host: 12-core AMD Ryzen 5 5500U, Bun 1.3.14. The harness, the corpus generator and the operating manual are in the benchmark repository, and every figure here can be regenerated from it.",
+      },
+
+      { kind: "h2", text: "Study two: what the browser experiences" },
+      {
+        kind: "p",
+        text: "An earlier study, on Stoneware 0.1.3, measuring the other half — what a visitor on a throttled connection actually waits for. The framework has moved on since; the client-side model it measures has not, because a page with no islands still ships nothing.",
+      },
       {
         kind: "p",
         text: "A portfolio and blog: home, about, contact, a blog index with five posts, and a docs section with seven pages. Built three times with matching content and the same five interactive components, then measured under Lighthouse mobile throttling — 1638 Kbps, 150 ms RTT, 4x CPU slowdown — 10 runs per page, median reported.",
