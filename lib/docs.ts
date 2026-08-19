@@ -64,9 +64,9 @@ export const DOCS: DocPage[] = [
       {
         kind: "figure",
         label: "measured on this site's own production build, gzipped",
-        text: `  Whole client runtime (signals + hydrate + DOM)     ~3.4 KB
-  One island, e.g. the counter on the home page       ~0.2 KB
-  A page with no islands                                   0 B
+        text: `  Whole client runtime (signals + hydrate + DOM)           ~3.4 KB
+  One island, e.g. the counter on the home page            ~0.2 KB
+  A page with no islands                                    0 B
 
   Runtime dependencies                                       1
   (@preact/signals-core — everything else is Bun's own APIs)`,
@@ -389,9 +389,9 @@ export default function Home({ params }: PageProps) {
      │                                                          │
      └─ page route                                              │
             │                                                   │
-            ├─ component(props)  ──►  VNode tree                 │
-            ├─ renderToString    ──►  HTML string  (escaping)    │
-            ├─ buildDocument     ──►  + payload + scripts        │
+            ├─ component(props)  ──►  VNode tree                │
+            ├─ renderToString    ──►  HTML string  (escaping)   │
+            ├─ buildDocument     ──►  + payload + scripts       │
             │                                                   │
             └───────────────┬───────────────────────────────────┘
                             ▼
@@ -417,12 +417,12 @@ export default function Home({ params }: PageProps) {
      │  renderToString walks it once
      ▼
   ┌──────────────────────────────────────────────┐
-  │  string        ──► escaped via Bun.escapeHTML │
-  │  number        ──► escaped                    │
-  │  signal        ──► .value, then escaped       │
+  │  string        ──► escaped via Bun.escapeHTML│
+  │  number        ──► escaped                   │
+  │  signal        ──► .value, then escaped      │
   │  raw("...")    ──► emitted verbatim  ◄── the only way through
-  │  function type ──► called, result walked      │
-  │  island        ──► marked + props collected   │
+  │  function type ──► called, result walked     │
+  │  island        ──► marked + props collected  │
   └──────────────────────────────────────────────┘
      │
      ▼
@@ -617,6 +617,101 @@ export default function Counter() {
         text: `import { signal } from "stoneware/signals";
 
 export const subscriberCount = signal(1284);`,
+      },
+      {
+        kind: "p",
+        text: "That instance is per browser tab on the client, which is the point. On the server it is per process — one instance shared by every request that process ever answers, for as long as it runs.",
+      },
+
+      { kind: "h2", text: "Never assign to a shared signal on the server" },
+      {
+        kind: "p",
+        text: "Reading one during a server render is safe. Writing one is a cross-user data leak, and it does not announce itself: the page renders, the types check, and the tests pass.",
+      },
+      {
+        kind: "p",
+        text: "The tempting version is giving an island its starting data by setting the shared signal in the route before returning the tree. Here is what that actually does, measured on a two-route fixture:",
+      },
+      {
+        kind: "figure",
+        label: "one process, four requests",
+        text: `  export const cart = signal(0);          // lib/store.ts
+  cart.value = itemsFor(user);            // routes/shop.tsx  ← the write
+
+  GET /shop?user=alice&items=7   ->  alice:7
+  GET /shop                      ->  alice:7   ← someone else's cart
+  GET /shop?user=bob&items=1     ->  carol:99  ← concurrent, crossed over
+  GET /shop?user=carol&items=99  ->  carol:99`,
+      },
+      {
+        kind: "p",
+        text: "The second request asked for nothing and was served the first visitor's identity and basket. The third and fourth were in flight at the same time, and one rendered the other's data — which is the normal state of a server under any load at all. Nothing in that output is a crash, so nothing draws attention to it.",
+      },
+      {
+        kind: "quote",
+        text: "The leak needs a write. Four requests against a process that only ever reads a shared signal all rendered the same initial value. Sharing a signal between islands is not the hazard; assigning to one while rendering is.",
+      },
+
+      { kind: "h2", text: "Server data reaches an island through props" },
+      {
+        kind: "p",
+        text: "Props are per request by construction — they are serialized into that one response's hydration payload and cannot outlive it. That is the mechanism for anything the server knows. Keep the shared signal for what the visitor changes after the page has loaded.",
+      },
+      {
+        kind: "code",
+        label: "the same page, without the leak",
+        text: `// lib/store.ts — starts neutral, only ever written in the browser
+export const cartDelta = signal(0);
+
+// routes/shop.tsx — the server passes what it knows
+<CartBadge user={user} items={itemsFor(user)} />
+
+// islands/CartBadge.tsx — server value from props, live changes from the signal
+export default function CartBadge({ user, items }) {
+  return <span>{user}:{items + cartDelta.value}</span>;
+}`,
+      },
+      {
+        kind: "p",
+        text: "The same four requests through that version render alice:7, anonymous:0, bob:1 and carol:99 — each its own. The shared signal still does its job the moment a visitor adds something, and every island watching it still updates together.",
+      },
+      {
+        kind: "quote",
+        text: "The rule is one line: a module-scope signal is client state that happens to be visible during SSR. If a value differs per visitor, it belongs in props.",
+      },
+      {
+        kind: "p",
+        text: "This is not specific to signals or to Stoneware — a module-scope Map, array or plain object used the same way leaks the same way, in any server that keeps a process alive between requests. Signals make it easier to reach for, which is why it is written down here.",
+      },
+
+      { kind: "h2", text: "The dev server watches for it" },
+      {
+        kind: "p",
+        text: "Because none of the above announces itself, the renderer remembers what each signal held the last time it rendered one and says something when that changes underneath it:",
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "terminal",
+        text: `[stoneware] A signal rendered inside <span> changed value between renders: "alice" -> "bob".
+  A signal declared at module scope is one instance per server process, shared by every
+  request it answers, so a value written during one render is still there for the next
+  visitor. If this value differs per visitor, pass it to the island as a prop instead —
+  props belong to one response and cannot outlive it.
+  Reported once per signal, in development only.`,
+      },
+      {
+        kind: "p",
+        text: "It compares rather than intercepts. Nothing wraps signal() — stoneware/signals is a thin re-export, and wrapping it would put the check in every island's client bundle. The renderer is server-only, so this costs the browser nothing at all and production one boolean check per rendered signal.",
+      },
+      {
+        kind: "list",
+        items: [
+          "Reported once per signal, not once per request, so a dev reload loop does not fill the terminal.",
+          "Silent on the safe pattern: a shared signal that is only ever read never reports, and neither does a signal created fresh inside a component.",
+          "It needs two renders to see a change, so the first request establishes the baseline and the warning appears on the reload after it.",
+          "It only sees signals that reach the output. A module-scope signal mutated during a render but never rendered is invisible to it — the leak is real, but there is nothing in the HTML to compare.",
+        ],
       },
 
       { kind: "h2", text: "Import signals from stoneware/signals" },
@@ -1689,6 +1784,30 @@ bun -e 'console.log(crypto.randomUUID() + crypto.randomUUID())'
         text: "Tokens are signed with this secret and bound to nothing else. Same-origin policy is what stops an attacker reading one out of your pages; the token proves the request came from a page your server rendered, not that it came from a particular visitor.",
       },
 
+      { kind: "h2", text: "Keeping one visitor's page away from another" },
+      {
+        kind: "p",
+        text: "A page that renders a CSRF token is marked private, no-store — it belongs to one person and no cache may keep it. But that flag means \"this render issued a token\", not \"this page is the same for everyone\", and a route that reads a session cookie personalizes its output without going near CSRF.",
+      },
+      {
+        kind: "p",
+        text: "Every cacheable page therefore carries Vary: Cookie, Authorization, so a shared cache keys on the visitor's identity as well as the URL. Measured against a cache keyed on the URL alone — the \"cache everything\" configuration every CDN offers — the difference is not subtle:",
+      },
+      {
+        kind: "figure",
+        label: "one route, three visitors, with and without the header",
+        text: `  without Vary                    with Vary
+  ────────────────────────        ────────────────────────
+  alice     -> alice              alice     -> alice
+  bob       -> alice              bob       -> bob
+  carol     -> alice              carol     -> carol
+  anonymous -> alice              anonymous -> guest`,
+      },
+      {
+        kind: "quote",
+        text: "A CDN that strips cookies before the origin sees them cannot personalize anything, and no response header repairs that — the request arrives without the thing that made it specific. Forward Cookie and Authorization, and honour Vary. See caching for what each response asks of a cache.",
+      },
+
       { kind: "h2", text: "Everything else" },
       {
         kind: "list",
@@ -1697,6 +1816,8 @@ bun -e 'console.log(crypto.randomUUID() + crypto.randomUUID())'
           "X-Content-Type-Options, X-Frame-Options and Referrer-Policy on every response.",
           "Static file serving refuses path traversal.",
           "A production build refuses to start without a CSRF secret.",
+          "Cacheable pages declare Vary: Cookie, Authorization, so a shared cache cannot serve one visitor's page to another.",
+          "A module-scope signal written during a render is reported in development, because that is a cross-visitor leak the type system cannot see.",
         ],
       },
       {
@@ -2178,6 +2299,25 @@ WEB_CONCURRENCY=4 stoneware start  # what Heroku, Render and Railway set
         ],
       },
 
+      { kind: "h2", text: "What to tell the CDN in front" },
+      {
+        kind: "p",
+        text: "Pages are sent as public, no-cache with an ETag, so a CDN keeps the bytes and a repeat visit costs one conditional request rather than a re-render. Two things it has to be configured for, and both are the kind of default that looks harmless:",
+      },
+      {
+        kind: "list",
+        items: [
+          "Forward Cookie and Authorization to the origin. A CDN that strips them cannot personalize anything — the origin never sees them, and no response header repairs it.",
+          "Honour Vary. Every cacheable page declares Vary: Cookie, Authorization, and a cache that keys on the URL alone will serve one visitor's page to another.",
+          "Do not add a max-age to HTML. The pages revalidate on purpose; a max-age is a window during which a published change is invisible.",
+          "Leave /_stoneware/* alone — content-hashed filenames, already immutable, and the one thing on the site that genuinely can be cached for a year.",
+        ],
+      },
+      {
+        kind: "p",
+        text: "Caching covers what every response says and why nothing is cached on the server.",
+      },
+
       { kind: "h2", text: "Behind a proxy that terminates TLS" },
       {
         kind: "p",
@@ -2447,6 +2587,183 @@ if (!existsSync(resolve(process.cwd(), ".stoneware/islands.json"))) {
     ],
   },
   {
+    slug: "caching",
+    title: "Caching",
+    summary:
+      "What every response tells a browser and a CDN, why a page is never cached on the server, and the header that keeps a shared cache from handing one visitor another's page.",
+    blocks: [
+      {
+        kind: "p",
+        text: "Stoneware caches nothing on the server. No rendered HTML, no route output, no data layer. What it does instead is describe each response accurately enough that the browser and the CDN in front of it can do the caching, which is where caching is cheap and where invalidating it is somebody else's already-solved problem.",
+      },
+      {
+        kind: "p",
+        text: "That is a deliberate choice with numbers behind it, and the second half of this page is the argument for it. The first half is what the headers actually say.",
+      },
+
+      { kind: "h2", text: "What each response says" },
+      {
+        kind: "figure",
+        label: "every response Stoneware produces",
+        text: `  page, ordinary          public, no-cache
+                          ETag: W/"<hash of the html>"
+                          Vary: Cookie, Authorization
+
+  page, CSRF token        private, no-store
+                          no ETag
+
+  page, development       no-store
+
+  404 / 500               no-store
+
+  /_stoneware/*.js|css    public, max-age=31536000, immutable
+                          (content-hashed filename)
+
+  public/ files           no-cache
+                          ETag: W/"<size>-<mtime>"
+                          Last-Modified`,
+      },
+      {
+        kind: "quote",
+        text: "no-cache does not mean \"do not store\". It means \"revalidate before use\". A browser or CDN keeps the bytes and a repeat visit costs one conditional request, which is answered with an empty 304 when nothing has changed.",
+      },
+
+      { kind: "h2", text: "Pages revalidate, they do not expire" },
+      {
+        kind: "p",
+        text: "An ordinary page carries a weak ETag derived from the rendered HTML, so the validator changes exactly when the page does. There is no max-age to tune and no window during which a visitor sees yesterday's article: publish a change, and the next conditional request gets a different hash and a 200.",
+      },
+      {
+        kind: "p",
+        text: "The honest cost of that is worth stating. Because the validator is a hash of the output, producing it means producing the output — so a request that ends in 304 has still run the route, rendered the tree and assembled the document. Measured on a 14 KB page, a 304 costs about four fifths of what the 200 costs. The saving is real but it is bandwidth, not server work.",
+      },
+      {
+        kind: "figure",
+        label: "measured in process, no sockets",
+        text: `  page   200   0.098ms      304   0.086ms     saves ~12%
+  asset  200   0.239ms      304   0.011ms     saves ~95%`,
+      },
+      {
+        kind: "p",
+        text: "The contrast is the point. A file's validator is its size and mtime, which are known without reading it, so an asset 304 is around twenty times cheaper than sending the file. A page's validator is the page.",
+      },
+
+      { kind: "h2", text: "What a shared cache is told to key on" },
+      {
+        kind: "p",
+        text: "Every cacheable page carries Vary: Cookie, Authorization. Without it a shared cache keys on the URL alone, and any route that reads a session cookie becomes a way to serve one visitor another visitor's page.",
+      },
+      {
+        kind: "p",
+        text: "That is not hypothetical. Measured against a cache keyed on the URL that serves what it holds — the \"cache everything\" configuration every CDN offers — with Alice arriving first and two more visitors arriving together:",
+      },
+      {
+        kind: "figure",
+        label: "same route, same cache, with and without the header",
+        text: `  without Vary                    with Vary
+  ────────────────────────        ────────────────────────
+  alice     -> alice              alice     -> alice
+  bob       -> alice              bob       -> bob
+  carol     -> alice              carol     -> carol
+  anonymous -> alice              anonymous -> guest
+
+  three of three visitors         each visitor served
+  served another user's page      their own page`,
+      },
+      {
+        kind: "p",
+        text: "The header is sent on every page, not only on the ones that read a cookie. Vary describes the resource rather than the request: a response cached from a visitor who sent no cookie would otherwise be handed to one who did, which is the same failure arriving a step later.",
+      },
+      {
+        kind: "quote",
+        text: "It costs something, and the cost is real. A site whose visitors carry a per-user analytics cookie gets a distinct cache key each, so shared-cache reuse for those visitors drops toward nothing. Cookie-less visitors — the actual public case — still share one entry. Correctness first; the alternative is a page that is only conditionally the right person's.",
+      },
+      {
+        kind: "p",
+        text: "Static assets deliberately do not carry it. They are bytes from disk, identical for every visitor, and fragmenting a CDN's key for them would cost reuse and buy nothing.",
+      },
+
+      { kind: "h2", text: "Pages that belong to one visitor" },
+      {
+        kind: "p",
+        text: "Rendering a CSRF token — through <Form> or csrfToken() — marks the response as belonging to one person. It becomes private, no-store with no ETag at all, because a fresh token per render means the body genuinely changes every time and there is nothing to revalidate against.",
+      },
+      {
+        kind: "quote",
+        text: "That flag means \"this render issued a token\". It does not mean \"this page is the same for everyone\", and it never did — which is exactly why Vary is sent unconditionally rather than only when the flag is unset.",
+      },
+      {
+        kind: "p",
+        text: "If a route personalizes from something else — a session cookie, an Authorization header — and you want it kept out of shared caches entirely rather than merely keyed correctly, say so in the route by returning your own response headers from a server action, or put the page behind a path your CDN is configured not to store.",
+      },
+
+      { kind: "h2", text: "Static assets" },
+      {
+        kind: "p",
+        text: "Two kinds, with two different strategies, and the difference is whether the filename carries a content hash.",
+      },
+      {
+        kind: "list",
+        items: [
+          "Built output — island chunks and the bundled stylesheet — is content-hashed, so the bytes can never change under a name. Cached for a year and marked immutable: no revalidation, no purge, and a deploy takes effect immediately because the page asks for a different filename.",
+          "Files in public/ are served byte-for-byte at their own URL and are not hashed, so they revalidate. The validator is derived from the file's size and mtime, read for each response, and Last-Modified is sent alongside it so a client can use either.",
+        ],
+      },
+      {
+        kind: "p",
+        text: "The resolved path of a file in public/ is remembered after it is first served, because resolving one is the expensive half — the symlink check alone costs about ten times what reading size and mtime does. The validator is deliberately not remembered: an earlier version cached it, and a file replaced under a running server then kept its old ETag, so a client holding it revalidated to 304 for as long as the process lived. Correct bytes, stale validator, and permanent from the client's side.",
+      },
+      {
+        kind: "quote",
+        text: "The set of files in public/ is read once at startup in production, so a file added while the server runs is not served until it restarts. Contents changing is handled; files appearing is not. Development re-reads on every request.",
+      },
+
+      { kind: "h2", text: "Why there is no server-side page cache" },
+      {
+        kind: "p",
+        text: "The obvious next step is to keep rendered HTML in memory and skip the render. It was measured before it was rejected, and the numbers did not support it.",
+      },
+      {
+        kind: "figure",
+        label: "where the time in a page request actually goes",
+        text: `  renderToString, 14 KB page      0.021ms
+  buildDocument                   0.002ms
+  whole framework request path    0.122ms
+  the same request over HTTP      ~0.9ms
+
+  rendering is ~2% of the request`,
+      },
+      {
+        kind: "p",
+        text: "A perfect HTML cache would remove the render and nothing else — roughly seven per cent of an end-to-end request. In exchange it would bring cache invalidation, memory growth, and a coherence problem across worker processes, each of which is a source of the exact bug people report against frameworks that do have one: a page that will not update.",
+      },
+      {
+        kind: "quote",
+        text: "Nothing is cached, so nothing goes stale. An article edited and redeployed is correct on the next request, with no purge step, no revalidate call, and no tag to remember to invalidate.",
+      },
+      {
+        kind: "p",
+        text: "It also means the multi-process mode has nothing to keep in sync. Four workers hold four copies of the route table and the island manifest, all identical and all read-only. Next.js needed a pluggable cache handler precisely because its per-instance cache is not coherent across instances; there is no equivalent problem here because there is no equivalent cache.",
+      },
+
+      { kind: "h2", text: "What your CDN needs from you" },
+      {
+        kind: "list",
+        items: [
+          "Forward the Cookie and Authorization headers to the origin. A CDN that strips them cannot personalize anything — the origin never sees them, and no response header can repair that.",
+          "Honour Vary. If the cache keys only on the URL, it will serve one visitor's page to another, and that is a configuration choice rather than something the origin can prevent.",
+          "Do not add a max-age to HTML. The pages revalidate on purpose; a max-age is a window during which a published change is invisible.",
+          "Leave /_stoneware/* alone. It is already immutable and hashed, and it is the one thing on the site that genuinely can be cached forever.",
+        ],
+      },
+      {
+        kind: "p",
+        text: "An exported site has no server to revalidate against, so its caching is entirely the host's. See static export for what the export writes and what a host has to be told.",
+      },
+    ],
+  },
+
+  {
     slug: "static-export",
     title: "Static export",
     summary: "Prerender the whole site to files any host can serve, and know exactly which pages cannot go.",
@@ -2524,6 +2841,10 @@ if (!existsSync(resolve(process.cwd(), ".stoneware/islands.json"))) {
       {
         kind: "p",
         text: "Everything under public/ is copied to the root of dist/ as-is, and the hashed island chunks and stylesheet land under _stoneware/ at the same URLs the pages reference. Islands hydrate on an exported site exactly as they do on a served one — export removes the server, not the interactivity.",
+      },
+      {
+        kind: "quote",
+        text: "Export also removes every response header, and caching is one of them. There is no origin to revalidate against, so what a browser holds and for how long is entirely your host's configuration. The one part that carries its own answer is _stoneware/: those filenames contain a content hash, so they are safe to cache forever on any host. See caching for what the served version sends and why.",
       },
 
       { kind: "h2", text: "Dynamic routes need staticPaths()" },
@@ -2692,7 +3013,7 @@ aws s3 sync dist s3://your-bucket --delete`,
     slug: "whats-new",
     title: "What's new",
     summary:
-      "0.2.0 — a sitemap you do not maintain by hand, serving from more than one process, and two silent failures that now say something.",
+      "0.2.0 — a sitemap you do not maintain by hand, serving from more than one process, shared-cache safety, and several silent failures that now say something.",
     blocks: [
       { kind: "h2", text: "0.2.0" },
       {
@@ -2840,10 +3161,54 @@ export function GET(): Response {
         text: "The public/ listing is read once at startup in production, never in development, and a directory containing symlinks opts out of indexing entirely rather than guess at what a link points to. It is a negative filter and nothing more: a path it does not contain is answered as a miss, and a path it does contain goes through every traversal, symlink and dotfile check exactly as before.",
       },
 
+      { kind: "h2", text: "A shared cache can no longer mix visitors up" },
+      {
+        kind: "p",
+        text: "Every cacheable page now carries Vary: Cookie, Authorization. Without it a shared cache keys on the URL alone, and any route that reads a session cookie becomes a way to hand one visitor another visitor's page — measured against a cache in the \"cache everything\" configuration, three of three visitors were served the page of whoever arrived first.",
+      },
+      {
+        kind: "figure",
+        label: "one route, three visitors",
+        text: `  before                          after
+  ────────────────────────        ────────────────────────
+  alice     -> alice              alice     -> alice
+  bob       -> alice              bob       -> bob
+  carol     -> alice              carol     -> carol
+  anonymous -> alice              anonymous -> guest`,
+      },
+      {
+        kind: "p",
+        text: "Sent on every page rather than only where a cookie was read, because Vary describes the resource and not the request: a response cached from a visitor who sent no cookie would otherwise be handed to one who did. Static assets deliberately do not carry it — they are identical for every visitor, and fragmenting a CDN's key for them would cost reuse and buy nothing. A genuinely public page still measured four of five requests served from cache.",
+      },
+      {
+        kind: "quote",
+        text: "It costs something. A site whose visitors carry a per-user analytics cookie gets a distinct cache key each, so shared-cache reuse for those visitors drops toward nothing. Cookie-less visitors still share one entry. The alternative was a page that is only conditionally the right person's.",
+      },
+
+      { kind: "h2", text: "An asset that changes is no longer served with a stale validator" },
+      {
+        kind: "p",
+        text: "The asset metadata cache introduced earlier in this release remembered the ETag as well as the resolved path. A file replaced under a running server then kept its old tag: the new bytes went out with the old validator, and a client holding it revalidated to 304 for as long as the process lived. Correct content, stale validator, silent, and permanent from the client's side.",
+      },
+      {
+        kind: "p",
+        text: "Now only the resolved path is remembered, which is the expensive half — the symlink check alone costs about ten times what reading size and mtime does. The validator is read for each response, so it always describes the bytes being sent.",
+      },
+
+      { kind: "h2", text: "The dev server watches for cross-request state" },
+      {
+        kind: "p",
+        text: "A signal declared at module scope is one instance per server process, shared by every request it answers. Reading one during a render is how islands share state and is safe; writing one is a cross-user data leak. On a two-route fixture, a request carrying no parameters at all was served the previous visitor's identity and basket, and two concurrent requests each rendered the other's data.",
+      },
+      {
+        kind: "p",
+        text: "The renderer now remembers what each signal held last time and reports when that changes underneath it, naming the element and the values. Once per signal, development only, and by comparison rather than by wrapping signal() — so it costs the browser nothing and production one boolean check per rendered signal. See islands for the safe pattern.",
+      },
+
       { kind: "h2", text: "One behaviour change to know about" },
       {
         kind: "quote",
-        text: "In production, public/ is read once at startup. A file written into it by a running process — an upload, say — is not served until the server restarts. Development is unchanged and re-reads on every request.",
+        text: "In production, the list of files in public/ is read once at startup. A file written into it by a running process — an upload, say — is not served until the server restarts. Contents changing is handled: an existing file that is replaced is served with a validator that matches its new bytes. Development is unchanged and re-reads on every request.",
       },
       {
         kind: "p",
@@ -2857,7 +3222,7 @@ export function GET(): Response {
           "The built server entry now goes through serve() rather than calling Bun.serve itself. It was a second definition of how the server boots, and the multi-process path silently did not apply to it.",
           "listen() refuses allowPortFallback and reusePort together. They want opposite things when a port is busy, and quietly picking one would make a clustered server bind a different port per worker and look like it was working.",
           "A non-numeric WEB_CONCURRENCY is ignored rather than fatal. It comes from a platform, not from your project, and refusing to boot over it would trade a working single process for an outage.",
-          "601 tests, up from 519.",
+          "629 tests, up from 519.",
         ],
       },
 
@@ -4045,7 +4410,7 @@ export default function middleware({ request, url, locals }: MiddlewareContext) 
         language: "txt",
         label: "same route, two callers",
         text: `fetch("/api/thing")            →  { "error": "Not Found", "status": 404 }
-browser navigates to it       →  the _404 page, as before`,
+browser navigates to it        →  the _404 page, as before`,
       },
       {
         kind: "p",
@@ -4213,7 +4578,7 @@ export const DOC_GROUPS: DocGroup[] = [
   },
   {
     label: "Build & deploy",
-    slugs: ["cli", "deploying", "static-export"],
+    slugs: ["cli", "deploying", "caching", "static-export"],
   },
   {
     label: "Reference",
