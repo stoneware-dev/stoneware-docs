@@ -336,22 +336,26 @@ export default function Home({ params }: PageProps) {
         label: "stoneware build",
         text: `my-site/.stoneware/
 │
-├── server.js               One bundle: framework + every route + every island.
-│                           Routes are inlined, so no transpiling per request.
+├── server.js               One bundle: framework + every route + every island,
+│                           plus the pattern table used to match paths.
+├── server.js.map           Source map, so a stack trace still names your file.
+├── server-entry.ts         The generated entry the bundle was built from.
 │
 ├── islands.json            Island name -> public chunk URL.
-│                           { "Counter": "/_stoneware/Counter-jzp1gax8.js" }
+│                           { "Counter": "/_stoneware/Counter-rzesgezg.js",
+│                             "@runtime": "/_stoneware/stoneware-runtime-2pweh7fr.js" }
 │
 ├── static/                 Served under /_stoneware/*, immutable (content-hashed).
-│   ├── Counter-jzp1gax8.js     One entry chunk per island.
-│   ├── chunk-gcapcpwn.js       Shared runtime: signals + hydrate.
-│   └── styles-4kq2n7wd.css     Every .css found beside your code.
+│   ├── Counter-rzesgezg.js          One entry chunk per island.
+│   ├── chunk-y24dm8pf.js            Shared code, hoisted out of the entries.
+│   ├── stoneware-runtime-2pw...js   Lazy hydration. Always emitted; a few hundred bytes.
+│   └── styles-4kq2n7wd.css          Every .css found beside your code.
 │
 └── entries/                Generated island entry points. Build input.`,
       },
       {
         kind: "quote",
-        text: "routes/ must still exist at runtime. Route modules are inlined into server.js, but path matching reads the directory for its filenames — never for its contents.",
+        text: "Since 0.1.4 the source tree is a build input, not a runtime dependency. Routes and islands are inlined into server.js and paths are matched against a pattern table written beside them, so a built server runs with routes/ and islands/ deleted — which is what makes a minimal container image possible.",
       },
       {
         kind: "p",
@@ -568,6 +572,98 @@ export default function Post({ params }: PageProps) {
       {
         kind: "p",
         text: "Params arrive percent-decoded and are escaped like any other value when interpolated, so a slug containing markup is inert.",
+      },
+
+      { kind: "h2", text: "Catch-all segments" },
+      {
+        kind: "p",
+        text: "A bracketed spread swallows the rest of the path. Two forms, and the difference is whether the route also answers the bare parent path.",
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "routes/",
+        text: `routes/docs/[...path].tsx     ->  /docs/a  and  /docs/a/b/c
+                                  but NOT /docs
+
+routes/files/[[...path]].tsx  ->  /files  and  /files/a/b/c`,
+      },
+      {
+        kind: "p",
+        text: "The captured value is a single string with the segments joined by a slash — params.path is \"a/b/c\", not an array. Split it yourself if you need the parts. For the optional form matching zero segments, the param is absent rather than an empty string, so params.path is undefined and a check for it means what it looks like it means.",
+      },
+      {
+        kind: "code",
+        label: "routes/docs/[...path].tsx",
+        text: `import { notFound, type PageProps } from "stoneware";
+
+export default function Doc({ params }: PageProps) {
+  const segments = params.path.split("/");
+  const page = lookup(segments);
+  if (!page) notFound();
+
+  return <article>{page.body}</article>;
+}`,
+      },
+      {
+        kind: "quote",
+        text: "A catch-all is only ever the last segment. Anything after it could never match, so the pattern would be a route that cannot be reached.",
+      },
+
+      { kind: "h2", text: "Which route wins" },
+      {
+        kind: "p",
+        text: "When more than one pattern could match a path, the most specific one answers. Specificity is decided segment by segment, at the first position where two patterns differ, in this order:",
+      },
+      {
+        kind: "figure",
+        label: "most specific first",
+        text: `  1  literal        /blog/about
+  2  param          /blog/[slug]
+  3  catch-all      /blog/[...rest]
+  4  optional       /blog/[[...rest]]`,
+      },
+      {
+        kind: "p",
+        text: "So /blog/about reaches routes/blog/about.tsx even though [slug] and [...rest] would both have matched it. This is the precedence Next.js documents, which is the one most people arrive expecting. The table is compiled once at startup and ordered, so matching returns the first hit rather than scoring candidates on every request.",
+      },
+      {
+        kind: "p",
+        text: "You never have to work it out from filenames. stoneware routes prints the compiled table in the order patterns are actually tried, alongside whether each is a page or an action.",
+      },
+
+      { kind: "h2", text: "Paths that never reach a route" },
+      {
+        kind: "p",
+        text: "Some request paths are refused during matching and answer 404 without any route being consulted. These are not conditions your code has to defend against, and they are worth knowing because each one is a bypass in frameworks that get it wrong.",
+      },
+      {
+        kind: "list",
+        items: [
+          "An encoded slash stays inside its segment. The path is split before it is decoded, so /blog/a%2Fb is one segment containing a slash and can never satisfy a two-segment route — the path-confusion bypass that decoding first would open.",
+          "An empty segment is refused. //a and /a//b are 404 rather than being read as /a and /a/b, so two spellings can never resolve to one route.",
+          "A malformed escape is refused. /blog/%zz or a bare % is 404 rather than an exception.",
+          "A NUL byte anywhere in the path is refused.",
+          "Leading and trailing slashes are trimmed, so /about/ and /about are the same route.",
+        ],
+      },
+
+      { kind: "h2", text: "Methods" },
+      {
+        kind: "p",
+        text: "A page answers GET and HEAD. Anything else gets 405 with an Allow: GET, HEAD header — a page is a document, and POSTing to one is a mistake worth naming rather than a 404 that reads as a typo.",
+      },
+      {
+        kind: "p",
+        text: "An action answers exactly the methods it exports. A request for one it does not gets 405 with Allow listing the ones it does. HEAD falls through to the GET handler when there is one, and the body is dropped on the way out — so a HEAD never runs different code from the GET it is asking about.",
+      },
+      {
+        kind: "quote",
+        text: "A mutating request with no CSRF token is 403 before any of this, because verification runs ahead of matching. So a bare curl -X POST at a page answers 403, not 405 — the request never got far enough to be told which methods the route allows.",
+      },
+      {
+        kind: "quote",
+        text: "A leading underscore marks a file as a convention rather than a page. routes/_404.tsx, routes/_500.tsx and routes/_middleware.ts are never servable at their own paths — without that, the error page would answer a real request at /_404 with a 200.",
       },
     ],
   },
@@ -1560,9 +1656,84 @@ export async function POST({ request }: ActionContext) {
         kind: "p",
         text: "Verification happens in the request pipeline, before any handler is reached, on every non-GET request. It is not something a route opts into — a raw form does not silently skip protection, it simply fails. The token is checked against a clone of the request, so your handler still receives an unconsumed body.",
       },
+      { kind: "h2", text: "PUT, PATCH and DELETE from a form" },
       {
         kind: "p",
-        text: "For an island doing its own fetch(), pass the token in as a prop with csrfToken() and send it in the x-csrf-token header.",
+        text: "HTML forms can only issue GET and POST. That is a browser limitation with no workaround, so Form takes the method you meant, submits a POST, and carries the real method in a hidden _method field that the router unwraps before matching a handler.",
+      },
+      {
+        kind: "code",
+        label: "routes/posts/[id].tsx",
+        text: `<Form action={\`/api/posts/\${params.id}\`} method="DELETE">
+  <button type="submit">Delete</button>
+</Form>;`,
+      },
+      {
+        kind: "code",
+        language: "ts",
+        label: "routes/api/posts/[id].ts",
+        text: `export async function DELETE({ params }: ActionContext) {
+  await deletePost(params.id);
+  return new Response(null, { status: 303, headers: { Location: "/posts" } });
+}`,
+      },
+      {
+        kind: "quote",
+        text: "The override is read only after CSRF verification has passed. Order matters: if _method were unwrapped first, a form field would be choosing which handler ran on a request that had not yet been proven to come from your own page.",
+      },
+      {
+        kind: "p",
+        text: "Only PUT, PATCH and DELETE are accepted as overrides, and only on a POST carrying a form-encoded body. A _method field on anything else is ignored rather than obeyed. A request that already uses the real verb — a fetch() sending DELETE — needs none of this and never goes near the field.",
+      },
+
+      { kind: "h2", text: "Calling an action from an island" },
+      {
+        kind: "p",
+        text: "An island doing its own fetch() has no form to inject a token into, so pass one in as a prop. csrfToken() is callable during a server render and returns a token bound to nothing but your secret; send it in the x-csrf-token header.",
+      },
+      {
+        kind: "code",
+        label: "routes/index.tsx",
+        text: `import { csrfToken } from "stoneware";
+import Subscribe from "../islands/Subscribe.tsx";
+
+export default function Home() {
+  return <Subscribe token={csrfToken()} />;
+}`,
+      },
+      {
+        kind: "code",
+        label: "islands/Subscribe.tsx",
+        text: `export default function Subscribe({ token }: { token: string }) {
+  async function send() {
+    await fetch("/api/subscribe", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-csrf-token": token },
+      body: JSON.stringify({ email: email.value }),
+    });
+  }
+
+  return <button onClick={send}>Subscribe</button>;
+}`,
+      },
+      {
+        kind: "p",
+        text: "The header name is x-csrf-token and the form field is _csrf. Both are configurable — csrf.headerName and csrf.fieldName. If you change the field name and are building a form by hand rather than with Form, csrfFieldName() returns the configured value so the string is not written twice. Both functions read the render currently in progress, so they are callable from a route or a template and nowhere else.",
+      },
+      {
+        kind: "quote",
+        text: "Minting a token — through csrfToken() or through Form — marks the whole response private, no-store with no ETag. Reading csrfFieldName() does not; it only looks at config. A fresh token per render means the body genuinely changes every time, so there is nothing for a cache to revalidate against — which is why a page that mints a token stops being CDN-cacheable. See caching.",
+      },
+
+      { kind: "h2", text: "What a handler gets back" },
+      {
+        kind: "list",
+        items: [
+          "An unhandled method is 405 with an Allow header listing what the file does export, not a 404.",
+          "Verification runs against a clone of the request, so your handler still receives an unconsumed body.",
+          "A failing route answers a fetch() with JSON and a browser navigation with the error page, decided from the Accept header rather than from the path.",
+          "Return any Response you like. There is no convention about shape — Response.json(), a redirect, a 204, all fine.",
+        ],
       },
     ],
   },
@@ -4463,6 +4634,774 @@ browser navigates to it        →  the _404 page, as before`,
   },
 
   {
+    slug: "testing",
+    title: "Testing",
+    summary:
+      "Request in, HTML out — with no port opened, no server started and nothing to tear down.",
+    blocks: [
+      {
+        kind: "p",
+        text: "createApp() returns an app with a fetch method that takes a Request and returns a Response. That is the whole testing story. There is no test server to start, no port to pick, no race between the server being ready and the first request, and nothing to shut down afterwards.",
+      },
+      {
+        kind: "code",
+        language: "ts",
+        label: "test/pages.test.ts",
+        text: `import { beforeAll, describe, expect, test } from "bun:test";
+import { join } from "node:path";
+import { createApp, type StonewareApp } from "stoneware";
+
+let app: StonewareApp;
+
+beforeAll(async () => {
+  app = await createApp(
+    { root: join(import.meta.dir, ".."), csrf: { secret: "test-secret" } },
+    { dev: true, islandManifest: {}, stylesheet: null },
+  );
+});
+
+const get = (path: string) => app.fetch(new Request(\`http://localhost\${path}\`));
+
+test("renders a post", async () => {
+  const response = await get("/blog/hello-world");
+  expect(response.status).toBe(200);
+  expect(await response.text()).toContain("<h1>Hello world</h1>");
+});`,
+      },
+      {
+        kind: "p",
+        text: "The hostname in the URL is arbitrary — nothing is bound, so it only has to parse. Use the same origin everywhere and any absolute URL your pages build will be predictable.",
+      },
+
+      { kind: "h2", text: "The three options that matter in a test" },
+      {
+        kind: "list",
+        items: [
+          "root — point it at your project, explicitly. Left out, it resolves against process.cwd(), which is whatever directory the test runner happened to start in.",
+          "islandManifest: {} and stylesheet: null — say there is no build output on disk rather than letting the app go looking for it. In dev the app builds its own islands at startup and replaces the empty manifest, so pages with islands render and hydrate normally.",
+          "csrf.secret — a fixed string. Without one, development mints an ephemeral secret per process and prints a warning; with one, tokens are stable and reproducible.",
+        ],
+      },
+      {
+        kind: "quote",
+        text: "dev: true gives you error pages carrying the real exception and stack, which is what you want to assert against. It also makes every response no-store and re-reads public/ on each request. Set dev: false when the test is about caching or headers, because those differ.",
+      },
+      {
+        kind: "p",
+        text: "One trap in that switch: dev: false does not build anything. A page that renders an island then throws \"Island X was rendered but has no client bundle\", because the empty manifest is taken at its word instead of being filled in. Test caching against a route with no islands on it, or run a build first and pass the real manifest.",
+      },
+
+      { kind: "h2", text: "Testing a route in isolation" },
+      {
+        kind: "p",
+        text: "Point root at a fixture directory rather than at your real project, and the tests describe framework behaviour instead of your content. An editorial change to a real page then cannot break a routing test.",
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "test/fixture/",
+        text: `test/
+  fixture/
+    routes/
+      index.tsx
+      blog/[slug].tsx
+      api/echo.ts
+  routing.test.ts     ← root: join(import.meta.dir, "fixture")`,
+      },
+      {
+        kind: "p",
+        text: "This is how Stoneware tests itself. One caveat if you copy the pattern into a package rather than an app: fixture routes written in JSX need stoneware/jsx-runtime to resolve from wherever they sit, which is a reason to keep the fixture inside the project rather than in a temp directory.",
+      },
+
+      { kind: "h2", text: "Posting to an action" },
+      {
+        kind: "p",
+        text: "CSRF verification runs on every non-GET request in tests exactly as it does in production — that is the point of putting it in the pipeline rather than in a decorator. So a test that posts needs a real token, and the honest way to get one is to render the page that has the form and take the token out of it.",
+      },
+      {
+        kind: "code",
+        language: "ts",
+        label: "test/actions.test.ts",
+        text: `async function freshToken(): Promise<string> {
+  const html = await (await get("/")).text();
+  const match = html.match(/name="_csrf" value="([^"]+)"/);
+  if (!match) throw new Error("Page rendered no CSRF token");
+  return match[1]!;
+}
+
+test("accepts a real token", async () => {
+  const body = new URLSearchParams({ email: "a@b.com", _csrf: await freshToken() });
+  const response = await app.fetch(
+    new Request("http://localhost/api/subscribe", { method: "POST", body }),
+  );
+  expect(response.status).toBe(200);
+});
+
+test("rejects a forged one", async () => {
+  const body = new URLSearchParams({ email: "a@b.com", _csrf: "forged" });
+  const response = await app.fetch(
+    new Request("http://localhost/api/subscribe", { method: "POST", body }),
+  );
+  expect(response.status).toBe(403);
+});`,
+      },
+      {
+        kind: "p",
+        text: "Extracting the token rather than minting one keeps the test honest: it exercises the same path a browser takes, and it fails if the form ever stops carrying a field. If you would rather not parse HTML, generateToken(config) mints one directly from a resolved config — useful for testing verification itself, less useful as an end-to-end assertion, because it skips the half where the page has to render the field at all.",
+      },
+      {
+        kind: "quote",
+        text: "A GET is never verified, so read-only tests need none of this. If a test that only fetches pages is failing on CSRF, the request is not the method you think it is.",
+      },
+
+      { kind: "h2", text: "What else is worth asserting" },
+      {
+        kind: "list",
+        items: [
+          "Status and headers. The Response is a real one — Cache-Control, ETag, Vary and the security headers are all on it, so header behaviour is testable without a socket.",
+          "A 304. Fetch once, read the ETag, fetch again with If-None-Match, and assert the status. Two lines, no cache to simulate.",
+          "notFound(). A page that calls it answers 404 with your _404 page rendered into it, so assert on the status and the body together.",
+          "Islands, server-side. An island renders its full initial HTML into the page — that is the no-flash-of-empty-content guarantee, and it is assertable as a plain string with no DOM involved.",
+        ],
+      },
+      {
+        kind: "p",
+        text: "What app.fetch() cannot tell you is anything about the browser. Hydration, event handlers and lazy directives need a DOM; Stoneware's own suite registers happy-dom for the handful of tests that need one. Everything above this line is a string comparison, which is why it is fast enough to run on every save.",
+      },
+      {
+        kind: "quote",
+        text: "app.refresh() picks up changes on disk without rebuilding the app. The dev watcher uses it. In a test it is the way to assert that a change to a route is actually seen, without constructing a second app and hoping the first one released everything.",
+      },
+    ],
+  },
+
+  {
+    slug: "configuration",
+    title: "Configuration",
+    summary:
+      "Every option in stoneware.config.ts, its default, and the environment variable that overrides it.",
+    blocks: [
+      {
+        kind: "p",
+        text: "A project needs no config file. Every option below has a default that produces a working, secure app, with one exception — a CSRF secret in production — and that one refuses to start rather than guessing.",
+      },
+      {
+        kind: "code",
+        label: "stoneware.config.ts",
+        text: `import { defineConfig } from "stoneware";
+
+export default defineConfig({
+  port: 3000,
+  trustProxy: "proto",
+});`,
+      },
+      {
+        kind: "p",
+        text: "defineConfig is an identity function. It exists for type inference and nothing else, so a plain object export works identically and you lose only autocomplete.",
+      },
+
+      { kind: "h2", text: "Where the app lives" },
+      {
+        kind: "figure",
+        label: "paths — all resolved against root",
+        text: `  root          process.cwd()     the project directory
+  routesDir     routes            pages and actions
+  islandsDir    islands           the only source of client JS
+  publicDir     public            served byte-for-byte
+  outDir        .stoneware        build output`,
+      },
+      {
+        kind: "p",
+        text: "Set root explicitly in anything that is not started from the project directory — a test, a script, an embedded server. Everything else is relative to it, so getting root right is the only one that matters.",
+      },
+      {
+        kind: "quote",
+        text: "Renaming these is supported and rarely a good idea. routes/ and islands/ are the convention that tells a reader which files ship JavaScript; a project that calls them something else has to explain that in its README instead.",
+      },
+
+      { kind: "h2", text: "Network" },
+      {
+        kind: "figure",
+        label: "binding",
+        text: `  port        3000                     PORT wins over the config file
+  hostname    localhost in dev         HOST
+              0.0.0.0 in production
+  workers     1                        WEB_CONCURRENCY`,
+      },
+      {
+        kind: "p",
+        text: "The hostname default flips deliberately. A dev server bound to 0.0.0.0 is reachable from the rest of the network, which nobody asked for; a production server bound to localhost is unreachable from the proxy in front of it, and the platform reports it as a failed health check with no useful error.",
+      },
+      {
+        kind: "p",
+        text: "PORT beats the config file rather than the other way round, because a platform assigns a port and an app that binds a different one looks healthy in its own logs while every external request fails. --port sets PORT, which is why it wins too.",
+      },
+
+      { kind: "h2", text: "Security" },
+      {
+        kind: "figure",
+        label: "csrf",
+        text: `  csrf.secret       required in production   STONEWARE_CSRF_SECRET
+  csrf.expiresIn    86400000  (24 hours)
+  csrf.fieldName    _csrf
+  csrf.headerName   x-csrf-token`,
+      },
+      {
+        kind: "p",
+        text: "With no secret, production throws at startup and names the three places one can come from. Development mints an ephemeral one per process and warns: forms rendered before a restart fail verification after it, which is confusing exactly once and then never again.",
+      },
+      {
+        kind: "figure",
+        label: "the rest",
+        text: `  csp             a default policy       string | false | CSPSources
+  trustProxy      false                  STONEWARE_TRUST_PROXY
+  cors            off
+  followSymlinks  false`,
+      },
+      {
+        kind: "list",
+        items: [
+          "csp as an object adds origins to the default policy per directive rather than replacing it, so 'self' and every directive you did not mention survive. As a string it replaces the policy wholesale. As false it sends none, which is a decision you have to write down.",
+          "trustProxy: \"proto\" honours X-Forwarded-Proto only — enough to fix http/https confusion, and safe on any host. true also honours X-Forwarded-Host, which is the dangerous half: a forged host poisons every absolute URL the app emits, so it needs the stronger opt-in.",
+          "followSymlinks off means a link inside public/ pointing elsewhere on disk is not served. A path is checked lexically before it is opened but a symlink resolves at open time, so the two can disagree. Turn it on for a deliberate layout — a monorepo linking public/shared — and know that anything else writing a link into public/ then serves whatever it points at.",
+          "cors off means same-origin only. Turning it on without meaning to is how an internal API becomes a public one. See middleware and APIs for the options.",
+        ],
+      },
+
+      { kind: "h2", text: "Observation" },
+      {
+        kind: "p",
+        text: "observe takes a function called once per request with the finished response. Nothing is logged per request without it. stoneware dev installs consoleObserver() when it is unset, so development narrates itself and production stays silent until asked — setting it here replaces that in both.",
+      },
+      {
+        kind: "code",
+        text: `import { defineConfig, consoleObserver } from "stoneware";
+
+export default defineConfig({
+  observe: process.env.NODE_ENV === "production"
+    ? (event) => metrics.timing("http", event.durationMs, { route: event.route ?? "none" })
+    : consoleObserver(),
+});`,
+      },
+
+      { kind: "h2", text: "Environment variables, in full" },
+      {
+        kind: "figure",
+        label: "read by the framework",
+        text: `  PORT                    binding port, beats the config file
+  HOST                    binding hostname
+  WEB_CONCURRENCY         worker count, beaten by an explicit setting
+  STONEWARE_CSRF_SECRET   signing secret
+  STONEWARE_TRUST_PROXY   "1", "true" or "proto"`,
+      },
+      {
+        kind: "p",
+        text: "Bun loads .env automatically, so a local file is enough in development and no dotenv package is involved. WEB_CONCURRENCY is what Heroku, Render and Railway already set to describe how many processes a plan's memory allows, which means a deploy can scale without a config change.",
+      },
+      {
+        kind: "quote",
+        text: "A config file that is not there is indistinguishable from a project that has none: the app starts on defaults, and your csp override, cors, trustProxy and observer are all silently absent. If your CSRF secret lives in that file it fails loudly instead — but nothing else does.",
+      },
+    ],
+  },
+
+  {
+    slug: "api",
+    title: "API reference",
+    summary:
+      "Everything the package exports, what it is for, and which of them you are unlikely to need.",
+    blocks: [
+      {
+        kind: "p",
+        text: "One entry point for server code and two subpaths for code that runs in the browser. Nothing imported from stoneware reaches the browser unless the file importing it is under islands/. Every example below is complete enough to paste.",
+      },
+      {
+        kind: "figure",
+        label: "the three import paths",
+        text: `  stoneware           everything on this page, server side
+  stoneware/signals   signal, computed, effect — inside an island
+  stoneware/client    the hydration runtime — rarely imported by hand`,
+      },
+
+      { kind: "h2", text: "Form" },
+      {
+        kind: "p",
+        text: "A <form> with the CSRF token already in it. Defaults to POST. PUT, PATCH and DELETE are tunnelled through a hidden _method field, because HTML forms cannot send them.",
+      },
+      {
+        kind: "code",
+        label: "routes/contact.tsx",
+        text: `import { Form } from "stoneware";
+
+export default function Contact() {
+  return (
+    <Form action="/api/contact" class="stack">
+      <input type="email" name="email" required />
+      <textarea name="message" required />
+      <button type="submit">Send</button>
+    </Form>
+  );
+}`,
+      },
+      {
+        kind: "p",
+        text: "Any attribute you add is passed through to the element — class, id, enctype, data-*. A GET form gets no token, because it mutates nothing and the token would only end up in the query string.",
+      },
+
+      { kind: "h2", text: "Boundary" },
+      {
+        kind: "p",
+        text: "Catches an error thrown while rendering its children and puts the fallback there instead. The rest of the page still renders and the response is still 200, so one broken widget does not take down an article.",
+      },
+      {
+        kind: "code",
+        label: "routes/dashboard.tsx",
+        text: `import { Boundary } from "stoneware";
+
+<Boundary fallback={<p>Prices are unavailable right now.</p>}>
+  <PriceTable />
+</Boundary>;
+
+// As a function, to say something about what failed:
+<Boundary fallback={({ error }) => <p>Chart failed: {String(error)}</p>}>
+  <Chart />
+</Boundary>;`,
+      },
+      {
+        kind: "quote",
+        text: "error is only defined in development. In production it is undefined, deliberately — an exception message routinely carries a file path, a query or a connection string, and a fallback is rendered into a page a visitor reads. The error still reaches your observer as event.caught.",
+      },
+
+      { kind: "h2", text: "Image" },
+      {
+        kind: "p",
+        text: "An <img> that cannot be written without the things that prevent layout shift. width, height and alt are required arguments, not optional props.",
+      },
+      {
+        kind: "code",
+        label: "routes/index.tsx",
+        text: `import { Image } from "stoneware";
+
+<Image src="/hero.jpg" width={1200} height={630} alt="" priority />
+
+<Image
+  src="/team.jpg"
+  width={800}
+  height={600}
+  alt="The team at the 2026 offsite"
+  srcset="/team-800.jpg 800w, /team-1600.jpg 1600w"
+  sizes="(max-width: 700px) 100vw, 800px"
+/>;`,
+      },
+      {
+        kind: "p",
+        text: "priority marks the one image worth loading before anything else — usually the LCP element. It loads eagerly at high priority and gets a <link rel=\"preload\"> in the head. Marking several images priority means marking none of them. Everything else lazy-loads.",
+      },
+
+      { kind: "h2", text: "seo" },
+      {
+        kind: "p",
+        text: "Returns the meta tags for a page. Call it from a route's head export so the tags land in <head>, where they count.",
+      },
+      {
+        kind: "code",
+        label: "routes/blog/[slug].tsx",
+        text: `import { seo, type PageProps } from "stoneware";
+
+export function head({ params }: PageProps) {
+  const post = getPost(params.slug);
+  return seo({
+    title: \`\${post.title} — My Site\`,
+    description: post.excerpt,
+    canonical: \`https://example.com/blog/\${post.slug}\`,
+    openGraph: { type: "article", image: post.cover },
+    x: { card: "summary_large_image" },
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      headline: post.title,
+      datePublished: post.published,
+    },
+  });
+}`,
+      },
+      {
+        kind: "p",
+        text: "jsonLd is the lever for Google rich results — stars, breadcrumbs, FAQ accordions — and none of the other tags can produce them. It is serialised into an application/ld+json block, which browsers never execute and CSP does not govern. robots, alternates, themeColor and facebookAppId are also accepted; see the SEO page for what each one does.",
+      },
+
+      { kind: "h2", text: "raw, escapeHTML, safeJSONStringify" },
+      {
+        kind: "p",
+        text: "Everything interpolated into a template is escaped already, including route params — so a slug containing a script tag is inert without anyone thinking about it. These three are for the cases where you need to step outside that.",
+      },
+      {
+        kind: "code",
+        label: "the three, in order of how often you want them",
+        text: `import { raw, escapeHTML, safeJSONStringify } from "stoneware";
+
+// Almost never. raw() is the only way to emit unescaped markup, and it is
+// meant to feel inconvenient. Only for HTML you produced, never for input.
+<div>{raw(markdownToHTML(post.body))}</div>;
+
+// When you are building a string by hand rather than a tree.
+const title = escapeHTML(userSuppliedTitle);
+
+// Embedding data in a page. Not JSON.stringify — see below.
+<script type="application/ld+json">{raw(safeJSONStringify(schema))}</script>;`,
+      },
+      {
+        kind: "p",
+        text: "safeJSONStringify escapes <, > and & so a payload can never terminate the containing element, and U+2028/U+2029 because they are legal raw in JSON and are line terminators in JavaScript. JSON.stringify does neither, which is the path from a string in a database to script execution. It is what island props already travel through, and it is exported so your own embedded data gets the same treatment.",
+      },
+      {
+        kind: "code",
+        language: "ts",
+        label: "what the difference looks like",
+        text: `JSON.stringify({ a: "</script><b>" })
+// {"a":"</script><b>"}        ← ends the script tag
+
+safeJSONStringify({ a: "</script><b>" })
+// {"a":"\\u003c/script\\u003e\\u003cb\\u003e"}`,
+      },
+
+      { kind: "h2", text: "notFound and isNotFound" },
+      {
+        kind: "p",
+        text: "notFound() ends the render and produces a 404 with your _404 page in it. Callable from anywhere a render reaches — a route, a template, a helper three files deep.",
+      },
+      {
+        kind: "code",
+        label: "routes/blog/[slug].tsx",
+        text: `import { notFound, type PageProps } from "stoneware";
+
+export default function Post({ params }: PageProps) {
+  const post = getPost(params.slug);
+  if (!post) notFound();          // returns never — nothing after this runs
+
+  return <article><h1>{post.title}</h1></article>;
+}`,
+      },
+      {
+        kind: "p",
+        text: "It travels as an exception, which is why isNotFound() exists. A try/catch around code that might call it will otherwise swallow a routing decision and render a fallback with a 200 — a page that says \"not found\" while telling every crawler it is fine.",
+      },
+      {
+        kind: "code",
+        language: "ts",
+        label: "any catch that wraps a render",
+        text: `import { isNotFound } from "stoneware";
+
+try {
+  return await renderPost(params);
+} catch (error) {
+  if (isNotFound(error)) throw error;   // let the 404 through
+  logger.error(error);
+  return <Fallback />;
+}`,
+      },
+      {
+        kind: "quote",
+        text: "Boundary already does this for you — it re-throws notFound() rather than absorbing it. This only matters in a try/catch you wrote yourself.",
+      },
+
+      { kind: "h2", text: "requestURL" },
+      {
+        kind: "p",
+        text: "The public URL of a request, with trusted proxy headers applied. You rarely call it: props.url on every page and action is already this. Reach for it when you are holding a Request outside the pipeline.",
+      },
+      {
+        kind: "code",
+        language: "ts",
+        label: "routes/api/callback.ts",
+        text: `import { requestURL, type ActionContext } from "stoneware";
+
+export async function POST({ request }: ActionContext) {
+  const url = requestURL(request, "proto");
+  const redirect = new URL("/auth/done", url.origin);
+  // https://example.com/auth/done — not http://, and not localhost:3000
+  return Response.redirect(redirect, 303);
+}`,
+      },
+      {
+        kind: "quote",
+        text: "new URL(request.url) is the internal URL. Every platform that terminates TLS forwards plain HTTP to the app, so that URL says http:// for a site served over https://, and anything absolute built from it — canonical links, og:image, OAuth redirects, sitemaps — points at the insecure origin.",
+      },
+      {
+        kind: "p",
+        text: "The second argument is the same value as the trustProxy config option: false ignores forwarded headers entirely, \"proto\" honours the scheme only, true also honours the forwarded host. Pass your config's value rather than hardcoding one, or the function disagrees with the rest of the app.",
+      },
+
+      { kind: "h2", text: "csrfToken and csrfFieldName" },
+      {
+        kind: "p",
+        text: "For an island doing its own fetch(), which has no form for Form to inject a field into. Both read the render in progress, so they work in a route or a template and nowhere else.",
+      },
+      {
+        kind: "code",
+        label: "routes/index.tsx",
+        text: `import { csrfToken, csrfFieldName } from "stoneware";
+
+export default function Home() {
+  return (
+    <>
+      <Subscribe token={csrfToken()} />
+
+      {/* Or a hand-built form, if you are not using <Form> */}
+      <form action="/api/x" method="POST">
+        <input type="hidden" name={csrfFieldName()} value={csrfToken()} />
+      </form>
+    </>
+  );
+}`,
+      },
+      {
+        kind: "p",
+        text: "Send the token in the x-csrf-token header from the island. Minting one marks the whole response private, no-store with no ETag, because a fresh token per render means there is nothing stable to cache. csrfFieldName() alone does not — it only reads config.",
+      },
+
+      { kind: "h2", text: "sitemap and sitemapXML" },
+      {
+        kind: "p",
+        text: "sitemap() returns a finished Response; sitemapXML() returns the string, for when you want to write it to a file or wrap it yourself. Neither guesses which of your routes belong in a sitemap — that is an editorial decision, so you pass the list.",
+      },
+      {
+        kind: "code",
+        language: "ts",
+        label: "routes/sitemap.xml.ts",
+        text: `import { sitemap, type ActionContext } from "stoneware";
+import { POSTS } from "../lib/posts.ts";
+
+export function GET({ url }: ActionContext) {
+  return sitemap(
+    [
+      { url: "/", changeFrequency: "weekly", priority: 1 },
+      { url: "/about" },
+      ...POSTS.map((post) => ({
+        url: \`/blog/\${post.slug}\`,
+        lastModified: post.published,
+      })),
+    ],
+    { origin: url.origin },
+  );
+}`,
+      },
+      {
+        kind: "p",
+        text: "Relative URLs are resolved against origin. lastModified takes a Date or an ISO string. The XML is escaped correctly, including the apostrophe case most hand-rolled sitemaps get wrong, and it refuses more than the 50,000-entry limit rather than emitting a file no crawler will read.",
+      },
+
+      { kind: "h2", text: "createApp and serve" },
+      {
+        kind: "p",
+        text: "serve() creates the app and binds a port. createApp() creates the same app and hands it back with a fetch method — same behaviour, no socket, which is what makes tests fast. See testing.",
+      },
+      {
+        kind: "code",
+        language: "ts",
+        label: "the two of them",
+        text: `import { serve, createApp } from "stoneware";
+
+// Production: bind and listen.
+const { server, workers } = await serve();
+console.log(\`serving on \${server.url} across \${workers} process(es)\`);
+
+// A test, a script, an embed: no port at all.
+const app = await createApp({ root: "/path/to/project" }, { dev: true });
+const response = await app.fetch(new Request("http://localhost/about"));`,
+      },
+      {
+        kind: "p",
+        text: "serve() returns the app alongside the Bun server, the number of processes actually serving the port, and a supervisor when clustering is in play. You do not normally write either of these — stoneware start runs the generated entry, which calls serve() for you.",
+      },
+
+      { kind: "h2", text: "renderToString" },
+      {
+        kind: "p",
+        text: "Renders a tree to HTML outside a request. This is a fragment, not a document — no doctype, no head, no island scripts — so it is for email bodies, RSS items and snippets rather than for pages.",
+      },
+      {
+        kind: "code",
+        text: `import { renderToString } from "stoneware";
+
+const { html, islands } = renderToString(<Summary post={post} />);
+await sendEmail({ to: subscriber, html });`,
+      },
+      {
+        kind: "p",
+        text: "It returns an object, not a string: html, plus islands — every island the tree contained, in document order. A page render uses that second half to decide which chunks to reference. Rendering a fragment by hand, you normally want only html, and an island in something you are emailing is a sign the tree is the wrong one.",
+      },
+
+      { kind: "h2", text: "defineConfig, buildCSP, DEFAULT_CSP" },
+      {
+        kind: "code",
+        label: "stoneware.config.ts",
+        text: `import { defineConfig } from "stoneware";
+
+export default defineConfig({
+  port: 3000,
+  trustProxy: "proto",
+  csp: {
+    // Added to the default policy, not replacing it: 'self' survives.
+    imgSrc: ["https://cdn.example.com"],
+    connectSrc: ["https://api.example.com"],
+  },
+});`,
+      },
+      {
+        kind: "p",
+        text: "defineConfig is an identity function — it exists for type inference, and a plain object export works identically. buildCSP and DEFAULT_CSP are exported so you can print the policy you will actually send, which is worth doing once before arguing with a browser console.",
+      },
+      {
+        kind: "code",
+        language: "sh",
+        label: "terminal",
+        text: `bun -e 'import { buildCSP } from "stoneware";
+  console.log(buildCSP({ imgSrc: ["https://cdn.example.com"] }))'
+
+# default-src 'self'; script-src 'self'; ... img-src 'self' data: https://cdn.example.com; ...`,
+      },
+      {
+        kind: "quote",
+        text: "Naming a directive the default policy has no entry for — frameSrc, workerSrc — creates it seeded with 'self', because that is what it was inheriting from default-src. A source containing a semicolon, comma or whitespace throws, so a value read from an environment variable cannot append a directive nobody asked for.",
+      },
+
+      { kind: "h2", text: "consoleObserver and formatEvent" },
+      {
+        kind: "p",
+        text: "Nothing is logged per request unless you ask. consoleObserver() is the built-in one line per request; formatEvent() is that same line, exported so you can keep the format and send it somewhere other than the console.",
+      },
+      {
+        kind: "code",
+        language: "ts",
+        label: "stoneware.config.ts",
+        text: `import { defineConfig, consoleObserver, formatEvent } from "stoneware";
+
+export default defineConfig({
+  // The built-in. assets: true also logs images and chunks — off by default,
+  // because one page load is one page request and then everything on it.
+  observe: consoleObserver({ assets: true }),
+});
+
+// Or take the event apart yourself:
+observe: (event) => {
+  metrics.timing("http.request", event.durationMs, {
+    route: event.route ?? "unmatched",
+    status: String(event.status),
+  });
+  if (event.error) Sentry.captureException(event.error);
+  if (event.caught) event.caught.forEach((e) => Sentry.captureException(e));
+  logstream.write(formatEvent(event) + "\\n");
+},`,
+      },
+      {
+        kind: "p",
+        text: "event.route is the pattern — /blog/[slug], not /blog/hello — which is what you want as a metrics dimension. event.caught carries errors a Boundary absorbed: the request succeeded with a 200 and a fallback, so these would otherwise never reach a reporting backend. An observer that throws is reported once and the request is served normally; a broken logger must not turn a 200 into a 500.",
+      },
+
+      { kind: "h2", text: "stoneware/signals" },
+      {
+        kind: "p",
+        text: "A pass-through to @preact/signals-core that deliberately adds nothing. Importing through it rather than from the upstream package keeps the dependency replaceable without every island changing its imports.",
+      },
+      {
+        kind: "code",
+        label: "islands/Cart.tsx",
+        text: `import { signal, computed, effect, batch } from "stoneware/signals";
+
+const items = signal<Item[]>([]);
+const total = computed(() => items.value.reduce((n, i) => n + i.price, 0));
+
+effect(() => {
+  localStorage.setItem("cart", JSON.stringify(items.value));
+});
+
+export default function Cart() {
+  function addTwo(a: Item, b: Item) {
+    // One update, one re-render, instead of two.
+    batch(() => {
+      items.value = [...items.value, a];
+      items.value = [...items.value, b];
+    });
+  }
+
+  return <p>{total} in {items.value.length} items</p>;
+}`,
+      },
+      {
+        kind: "p",
+        text: "A signal declared at module scope is shared by every island that imports the module — that is how two islands on a page talk to each other. Declared inside the component function, it is per-instance. untracked() reads a signal without subscribing to it; Signal and ReadonlySignal are the types.",
+      },
+      {
+        kind: "quote",
+        text: "A module-scope signal on the server is shared between requests, not per-visitor. The dev server watches for a value that changed between renders and warns. See islands.",
+      },
+
+      { kind: "h2", text: "stoneware/client" },
+      {
+        kind: "p",
+        text: "The hydration runtime. The build wires this up for you and a normal project never imports it — it is here for hydrating something the framework did not put on the page.",
+      },
+      {
+        kind: "code",
+        language: "ts",
+        text: `import { hydrate, mountTree, startLazyHydration } from "stoneware/client";
+
+// What a generated island entry does: name the island, hand over the
+// component. Props come from the JSON payload the server emitted, and every
+// instance on the page that is ready for it is activated.
+hydrate("Counter", Counter);
+
+// Build a detached tree and get a disposer for its effects.
+const { fragment, dispose } = mountTree(<Badge count={count} />);
+container.append(fragment);
+dispose();
+
+// Start watching for client:visible / client:idle / client:media markers.
+startLazyHydration();`,
+      },
+      {
+        kind: "p",
+        text: "hydrate() is safe to call twice — an instance already mounted is skipped — which is what lets a chunk be re-imported. mountTree() returns a DocumentFragment rather than mounting into a parent, so you decide where it goes; dispose() tears down the effects it created.",
+      },
+
+      { kind: "h2", text: "Types" },
+      {
+        kind: "code",
+        language: "ts",
+        label: "the ones you will actually import",
+        text: `import type {
+  PageProps,          // params, request, url, locals — a page
+  ActionContext,      // the same four — an action handler
+  ErrorPageProps,     // PageProps + status, message, error — _404 / _500
+  HeadFn,             // the shape of a route's head export
+  MiddlewareContext,  // request, url, locals — _middleware.ts
+  Locals,             // yours to declare; see middleware
+  RequestEvent,       // what an observer receives
+  StonewareConfig,    // what a config file may contain
+  ImageProps,
+  SEOOptions,
+  SitemapEntry,
+} from "stoneware";`,
+      },
+      {
+        kind: "p",
+        text: "Child, Component, PageComponent, VNode and RawHTML are also exported, for code that builds or accepts markup generically rather than rendering it directly.",
+      },
+
+      { kind: "h2", text: "What not to import" },
+      {
+        kind: "p",
+        text: "Router, buildDocument, buildIslands, discoverIslands, loadIslands, buildIslandRegistry, resolveConfig, loadConfigFile, generateToken, verifyRequest, isSafeMethod and CLIENT_ASSET_PREFIX are the CLI's own plumbing. They are exported because the CLI is an ordinary consumer of the package and nothing more is meant by it. Building on them is building on internals, and they change without a major version.",
+      },
+      {
+        kind: "quote",
+        text: "One exception worth knowing: generateToken(config) mints a CSRF token from a resolved config rather than from a live render, which is occasionally what a test wants. It skips the half where the page has to render the field, so it is a weaker assertion than reading a token out of real HTML.",
+      },
+    ],
+  },
+
+  {
     slug: "benchmark",
     title: "Benchmark",
     summary: "Two studies: what the server does on 0.2.0, and what a visitor's browser waits for. One named run each, with what varies between runs called out.",
@@ -4731,7 +5670,7 @@ export const DOC_GROUPS: DocGroup[] = [
   },
   {
     label: "Server",
-    slugs: ["server-actions", "middleware", "database"],
+    slugs: ["server-actions", "middleware", "database", "testing"],
   },
   {
     label: "Security",
@@ -4743,7 +5682,7 @@ export const DOC_GROUPS: DocGroup[] = [
   },
   {
     label: "Reference",
-    slugs: ["benchmark"],
+    slugs: ["configuration", "api", "benchmark"],
   },
   {
     label: "Releases",
