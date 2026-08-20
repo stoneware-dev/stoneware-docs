@@ -9,10 +9,17 @@
 
 import type { ActionContext } from "stoneware";
 import { DOCS } from "../lib/docs.ts";
+import { POSTS } from "../lib/blog.ts";
 import { siteURL } from "../lib/site.ts";
 
 export function GET(_context: ActionContext): Response {
-  const paths = ["/", "/docs", ...DOCS.map((page) => `/docs/${page.slug}`)];
+  const paths = [
+    "/",
+    "/docs",
+    ...DOCS.map((page) => `/docs/${page.slug}`),
+    "/blogs",
+    ...POSTS.map((post) => `/blogs/${post.slug}`),
+  ];
 
   const body =
     `<?xml version="1.0" encoding="UTF-8"?>\n` +

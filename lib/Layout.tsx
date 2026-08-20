@@ -16,7 +16,7 @@ export interface LayoutProps {
   title: string;
   description: string;
   /** Highlights the matching top-level nav entry. */
-  section?: "docs" | "home";
+  section?: "docs" | "home" | "blogs";
   /**
    * The visitor's stored preference. Omitted when they have none, which leaves
    * the choice to `prefers-color-scheme` - see lib/theme.ts.
@@ -63,6 +63,9 @@ export function Layout({ title, description, section = "home", theme, children }
             </a>
             <a href="/docs" aria-current={section === "docs" ? "page" : undefined}>
               Docs
+            </a>
+            <a href="/blogs" aria-current={section === "blogs" ? "page" : undefined}>
+              Writing
             </a>
             <a href="/docs/quick-start">Quick start</a>
           </nav>
