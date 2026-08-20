@@ -669,6 +669,229 @@ export default function Doc({ params }: PageProps) {
   },
 
   {
+    slug: "components",
+    title: "Components",
+    summary:
+      "Plain functions that compose, take children and nest — and the one rule about async that follows from rendering to a string.",
+    blocks: [
+      {
+        kind: "p",
+        text: "Stoneware builds UI from components. A component is a function that takes props and returns markup — no class to extend, no hook to call, nothing to register. If you have written JSX before, this is the half of it you already know.",
+      },
+      {
+        kind: "code",
+        label: "lib/ui/Card.tsx",
+        text: `export function Card({ title, children }) {
+  return (
+    <article class="card">
+      <h3>{title}</h3>
+      {children}
+    </article>
+  );
+}`,
+      },
+      {
+        kind: "code",
+        label: "routes/index.tsx",
+        text: `import { Card } from "../lib/ui/Card.tsx";
+
+export default function Home() {
+  return (
+    <Card title="Hello">
+      <p>Body</p>
+    </Card>
+  );
+}`,
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "what the server sends",
+        text: `<article class="card"><h3>Hello</h3><p>Body</p></article>`,
+      },
+      {
+        kind: "quote",
+        text: "\"No component model\" in the design notes means no stateful component runtime — no hooks, no lifecycle, no classes, no context. It has never meant you cannot build UI out of components. This page is the part that works.",
+      },
+
+      { kind: "h2", text: "Composition" },
+      {
+        kind: "p",
+        text: "Components nest to any depth, take children, accept defaults, and spread the props you did not name. Markup itself is a value, so a component can take a prop that is an element.",
+      },
+      {
+        kind: "code",
+        label: "the patterns, all of which work",
+        text: `function Stack({ gap = "1rem", children }) {
+  return <div class="stack" data-gap={gap}>{children}</div>;
+}
+
+function Badge({ tone = "plain", ...rest }) {
+  return <span class={\`badge badge--\${tone}\`} {...rest} />;
+}
+
+<Stack gap="2rem">
+  <Card title="A">x</Card>
+  <Card title="B">y</Card>
+</Stack>
+
+<Badge tone="glazed" id="b1" aria-label="New" />
+
+{/* markup as a prop, not just as children */}
+<Card title={<em>rich</em>}>body</Card>`,
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "rendered",
+        text: `<div class="stack" data-gap="2rem">
+  <article class="card"><h3>A</h3>x</article>
+  <article class="card"><h3>B</h3>y</article>
+</div>
+
+<span class="badge badge--glazed" id="b1" aria-label="New"></span>
+
+<article class="card"><h3><em>rich</em></h3>body</article>`,
+      },
+
+      { kind: "h2", text: "Lists, conditionals and nothing" },
+      {
+        kind: "p",
+        text: "Arrays render in order. A falsy branch renders nothing at all rather than the word \"false\", and a component may return null when it has nothing to contribute.",
+      },
+      {
+        kind: "code",
+        text: `<ul>{items.map((item) => <li>{item.name}</li>)}</ul>
+
+<div>
+  {isAdmin && <AdminBar />}
+  {user ? <Profile user={user} /> : <SignIn />}
+</div>
+
+function Empty() {
+  return null;   // renders as an empty string
+}`,
+      },
+      {
+        kind: "quote",
+        text: "There is no key prop to remember. Keys exist so a reconciler can match nodes between renders, and there is no second render here — the list is walked once and appended to a string.",
+      },
+
+      { kind: "h2", text: "Fragments" },
+      {
+        kind: "p",
+        text: "Return several elements without a wrapper. This matters more than usual for islands, which must render exactly one root element — a fragment is how you find out you need a wrapper there.",
+      },
+      {
+        kind: "code",
+        text: `function Meta() {
+  return (
+    <>
+      <dt>Published</dt>
+      <dd>2026-08-20</dd>
+    </>
+  );
+}`,
+      },
+
+      { kind: "h2", text: "The one rule: only a route may be async" },
+      {
+        kind: "p",
+        text: "Rendering walks the tree to a string in a single synchronous pass, so there is no point at which a nested component's promise could be awaited. A route's default export is different — the server awaits that one call before rendering begins, which is the one place a promise can resolve.",
+      },
+      {
+        kind: "code",
+        label: "routes/blog/[slug].tsx — the shape that works",
+        text: `export default async function Post({ params }: PageProps) {
+  const post = await getPost(params.slug);   // fetch here
+  if (!post) notFound();
+
+  return (
+    <Layout>
+      <Article post={post} />        {/* pass it down as props */}
+    </Layout>
+  );
+}`,
+      },
+      {
+        kind: "p",
+        text: "Make a nested component async and the render stops and tells you, naming the component and the path down to it:",
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "the actual error",
+        text: `A component returned a promise while rendering.
+
+  in <Reviews>
+  in <Layout>
+
+Only a route's default export may be async - the server awaits that one call
+before rendering begins. A component nested inside JSX cannot be, because
+rendering never awaits.
+
+Fetch in the route and pass the result down as props.`,
+      },
+      {
+        kind: "quote",
+        text: "This is a constraint worth understanding rather than working around. Data fetching that happens inside a deeply nested component is how a page acquires a waterfall it cannot see; hoisting it to the route makes every query the page needs visible in one function.",
+      },
+
+      { kind: "h2", text: "Where components live" },
+      {
+        kind: "list",
+        items: [
+          "lib/ — shared components. This is the normal home for anything used by more than one route. Nothing under lib/ ships JavaScript unless an island imports it.",
+          "routes/ — a route's default export is a component, and a route file may define local components beside it. Never ships JavaScript.",
+          "islands/ — components that hydrate. The only place client JS originates.",
+        ],
+      },
+      {
+        kind: "p",
+        text: "A component and its stylesheet sit in the same folder: lib/ui/Card.tsx beside lib/ui/Card.css. The build finds the CSS by location, so there is nothing to import and deleting the folder deletes both.",
+      },
+
+      { kind: "h2", text: "Components and islands compose" },
+      {
+        kind: "p",
+        text: "An island nested inside ordinary components is still an island. The hydration marker lands on the island's own root element however deep it sits, so a layout can wrap interactive parts without knowing anything about hydration.",
+      },
+      {
+        kind: "code",
+        text: `<Layout>
+  <Panel>
+    <Counter />       {/* islands/Counter.tsx */}
+  </Panel>
+</Layout>`,
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "rendered — the marker is on the button, not on a wrapper",
+        text: `<main><section><div class="panel">
+  <button class="c" data-stoneware-island="Counter" data-stoneware-id="stoneware-0">0</button>
+</div></section></main>`,
+      },
+
+      { kind: "h2", text: "What there is no equivalent of" },
+      {
+        kind: "list",
+        items: [
+          "useState and friends. A component runs once, on the server. State that changes in the browser lives in an island, in a signal.",
+          "useEffect and lifecycle. There is nothing to mount and nothing to clean up — the output is a string.",
+          "Context providers. Pass props, or read from a module. Middleware puts per-request values on locals, which every route and action receives.",
+          "Class components and forwardRef. There is no instance and no DOM node to forward to on the server.",
+          "memo. Rendering a 14 KB document takes about 21 microseconds; there is nothing to memoize.",
+        ],
+      },
+      {
+        kind: "p",
+        text: "If a component needs to change after the page has loaded, that is the definition of an island. See islands for how state and hydration work there.",
+      },
+    ],
+  },
+
+  {
     slug: "islands",
     title: "Islands",
     summary: "How a component earns its JavaScript, and what hydration actually does.",
@@ -1458,6 +1681,42 @@ routes/index.css        lib/Card.css        islands/Counter.css
       {
         kind: "p",
         text: "public/ is the deliberate exception. Everything there is served byte-for-byte at its own URL, so a stylesheet you want to link yourself — a vendor file, a print sheet, something a third party fetches — goes there and gets its own <link>. It is never merged into the bundle, and it is never content-hashed, so it revalidates on each deploy instead of being cached forever.",
+      },
+
+      { kind: "h2", text: "Nesting, and what the bundler flattens for you" },
+      {
+        kind: "p",
+        text: "Native CSS nesting works, and it is the single biggest reduction in how much CSS a component needs. Bun's bundler flattens it at build time, so what reaches the browser is ordinary flat selectors — there is nothing to install and no browser floor to think about.",
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "lib/ui/Card.css — what you write",
+        text: `.card {
+  padding: 1.5rem;
+  & h3 { font-size: 1.2rem; }
+  &:hover { border-color: var(--celadon); }
+  @media (width < 46rem) { padding: 1rem; }
+}`,
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "what the bundle contains",
+        text: `.card { padding: 1.5rem; }
+.card h3 { font-size: 1.2rem; }
+.card:hover { border-color: var(--celadon); }
+@media (max-width: calc(46rem - .001px)) {
+  .card { padding: 1rem; }
+}`,
+      },
+      {
+        kind: "p",
+        text: "Two things happened there beyond flattening. The nested selectors were expanded into full ones, so no browser has to support nesting. And the range media query was rewritten to a max-width with the classic off-by-a-thousandth, so `width < 46rem` is safe to write even though the syntax is newer than the browsers you support.",
+      },
+      {
+        kind: "quote",
+        text: "This is the answer to a stylesheet that reads as a wall of repeated prefixes. A block with six BEM children repeats its block name six times; nested, it is written once. The output is identical either way — the difference is entirely in what you have to type and read.",
       },
 
       { kind: "h2", text: "The order sheets are concatenated" },
@@ -5659,6 +5918,7 @@ export const DOC_GROUPS: DocGroup[] = [
     label: "Core",
     slugs: [
       "routing",
+      "components",
       "islands",
       "hydration",
       "head-and-images",
