@@ -1259,8 +1259,87 @@ export default function CartBadge({ user, items }) {
   {
     slug: "seo",
     title: "SEO and sharing",
-    summary: "One seo() call for search engines, every social network, and rich results.",
+    summary:
+      "What a Stoneware site does for search before you configure anything, and the one call that writes the rest of the head.",
     blocks: [
+      {
+        kind: "p",
+        text: "Two halves. The first is what happens whether or not you do anything, and it follows from rendering the whole document on the server rather than from any feature aimed at search engines. The second is seo(), which writes the metadata you decide on.",
+      },
+      {
+        kind: "quote",
+        text: "Nothing here is a claim about rankings. Every item below is either enforced by the build or visible in the served HTML, which is the only kind of promise worth writing down — how a search engine weights anything this quarter is not ours to say.",
+      },
+
+      { kind: "h2", text: "The document is complete in the first response" },
+      {
+        kind: "p",
+        text: "A page with no islands ships zero bytes of JavaScript. Not a small runtime, not a hydration shim — no script tag at all. A crawler that never executes JavaScript still sees every word, because nothing was ever assembled on the client.",
+      },
+      {
+        kind: "figure",
+        label: "measured on a 21-route content site",
+        text: `  pages shipping no JavaScript      20 of 21
+  JavaScript on an article page      0 B
+  requests to render one article     2   (document + stylesheet)`,
+      },
+      {
+        kind: "p",
+        text: "What you get with curl is what gets indexed, which is worth testing rather than trusting. Pages also carry an ETag, so a crawler re-fetching an unchanged page gets an empty 304 instead of the document again.",
+      },
+
+      { kind: "h2", text: "Status codes are honest" },
+      {
+        kind: "p",
+        text: "A soft 404 — a page that says \"not found\" while returning 200 — is the most common indexing bug on a content site, because a dynamic route matches any slug and then discovers there is no such post. notFound() is the fix, and it produces a real 404 with your error page rendered into it.",
+      },
+      {
+        kind: "code",
+        label: "routes/blog/[slug].tsx",
+        text: `import { notFound, type PageProps } from "stoneware";
+
+export default function Post({ params }: PageProps) {
+  const post = getPost(params.slug);
+  if (!post) notFound();      // 404, not a 200 that says "not found"
+
+  return <article>{post.title}</article>;
+}`,
+      },
+      {
+        kind: "figure",
+        label: "what the framework answers without being asked",
+        text: `  /no-such-page      404      the _404 page, no-store
+  /_404              404      a convention, never servable as a page
+  notFound()         404      your _404 page, correct status
+  a thrown error     500      the _500 page, no-store`,
+      },
+      {
+        kind: "p",
+        text: "Errors carry Cache-Control: no-store, so a 404 held by a CDN cannot outlive the deploy that adds the missing page. And a leading underscore keeps routes/_404.tsx from being reachable at /_404 with a 200 — without that, your error page would be indexable content.",
+      },
+
+      { kind: "h2", text: "Canonical URLs survive the proxy" },
+      {
+        kind: "p",
+        text: "This one bites almost every deployment and is invisible locally. Every platform that terminates TLS — Render, Railway, Fly, Vercel, nginx — forwards a plain HTTP request to your app. So new URL(request.url) says http:// for a site served over https://, and every absolute URL built from it points at the wrong origin: canonical tags, og:image, sitemap entries, OAuth redirects.",
+      },
+      {
+        kind: "code",
+        label: "stoneware.config.ts",
+        text: `export default defineConfig({
+  trustProxy: "proto",   // or STONEWARE_TRUST_PROXY in the environment
+});`,
+      },
+      {
+        kind: "p",
+        text: "With it set, the url every page and action receives is the public one. \"proto\" honours the forwarded scheme only, which is safe on any host and enough to fix this; true also honours the forwarded host, which needs a proxy you control.",
+      },
+      {
+        kind: "quote",
+        text: "The failure mode is silent and it compounds: a canonical tag pointing at http:// tells a crawler your https:// page is a duplicate of a page that redirects. Nothing errors, and the site looks fine to you.",
+      },
+
+      { kind: "h2", text: "seo() writes the head" },
       {
         kind: "p",
         text: "Metadata is a lot of tags to remember and easy to get subtly wrong. seo() takes one object and emits only what you filled in — every field is optional, and an omitted field produces no tag rather than an empty one.",
@@ -1286,7 +1365,7 @@ export default function CartBadge({ user, items }) {
       },
       {
         kind: "p",
-        text: "Three fields in, three tags out. It is a convenience over writing them yourself, never a gate in front of them — the result is an ordinary fragment, so hand-written tags sit beside it in the same head.",
+        text: "Three fields in, three tags out. It is a convenience over writing them yourself, never a gate in front of them — the result is an ordinary fragment, so hand-written tags sit beside it in the same head. Call it from head rather than from the body; see head and images for why that export runs when it does.",
       },
 
       { kind: "h2", text: "There are only three audiences" },
@@ -1363,10 +1442,38 @@ export default function CartBadge({ user, items }) {
         text: "It is serialized into a application/ld+json block, which browsers parse as data and never execute — the same mechanism the island payload uses, and the reason it needs no CSP exception. The serializer escapes <, > and the line separators, so a value cannot close the element and inject markup.",
       },
 
+      { kind: "h2", text: "Three mistakes the tooling catches" },
+      {
+        kind: "p",
+        text: "Metadata in the wrong place, links that point nowhere, and pages the export silently skipped — all three are found before they ship rather than by a crawler weeks later.",
+      },
+      {
+        kind: "code",
+        language: "txt",
+        label: "1. seo() called from the wrong place — development only",
+        text: `[stoneware] seo() was called while rendering /about, not from its head export.
+  Those tags land in <body>, where nothing reads them. Move the call into:
+    export function head(props) { return seo({ ... }); }`,
+      },
+      {
+        kind: "p",
+        text: "Tags in <body> are not read by anything. The warning names the route, and it stays quiet for a page that owns its whole document, where the call is legitimate.",
+      },
+      {
+        kind: "code",
+        language: "sh",
+        label: "2 and 3. the export checks its own output",
+        text: `stoneware export --strict`,
+      },
+      {
+        kind: "p",
+        text: "The export follows every same-origin href and src in the pages it wrote and reports the ones that resolve to nothing — src as well as href, because a missing stylesheet or island chunk is the same failure. It also reports any route it skipped for having no staticPaths(). With --strict, either one fails the build instead of printing a note you scroll past.",
+      },
+
       { kind: "h2", text: "sitemap()" },
       {
         kind: "p",
-        text: "seo() covers one page. sitemap() covers which pages exist. Added in 0.2.0, and it replaced a scaffolded route that held a hand-written array of paths — a list that is wrong by the second page you publish.",
+        text: "seo() covers one page. sitemap() covers which pages exist. It is a route that returns XML, not configuration, so it can read the same data the pages render and stay correct without a build step. create-stoneware scaffolds this file and robots.txt.ts alongside it.",
       },
       {
         kind: "code",
@@ -1409,6 +1516,17 @@ export function GET(): Response {
       {
         kind: "p",
         text: "sitemapXML() returns the same document as a string, for writing to a file, snapshotting in a test, or nesting inside a sitemap index.",
+      },
+
+      { kind: "h2", text: "What none of this does" },
+      {
+        kind: "list",
+        items: [
+          "It does not write your metadata. seo() makes the tags easy; deciding what they say is yours.",
+          "It does not audit content. Headings, alt text, internal linking and whether the page is worth reading are not things a framework can check.",
+          "It does not make a slow origin fast. Time to first byte is your data layer plus the network; the framework's own share of a request is about 0.07ms.",
+          "It does not promise rankings, and any framework that does is selling something.",
+        ],
       },
     ],
   },
