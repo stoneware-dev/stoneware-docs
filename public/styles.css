@@ -17,7 +17,7 @@
 
 /* --- Palette -------------------------------------------------------------- */
 
-/* Fired and unfired: the same clay, before and after the kiln.
+/* Fired and unfired: the same clay, before and after the firing.
 
    One set of tokens rather than two. `light-dark()` resolves against the used
    `color-scheme`, so switching themes is a single property on <html> and no
@@ -118,7 +118,7 @@ body {
   overflow-x: hidden;
 }
 
-/* Atmosphere: a glaze pool below, kiln light from the top-left. Fixed layers,
+/* Atmosphere: a glaze pool below, firing light from the top-left. Fixed layers,
    so they never reflow and cost nothing to scroll. */
 body::before {
   content: "";
@@ -582,7 +582,7 @@ code {
 .stats {
   display: grid;
   /* Exactly four entries, and auto-fit dropped to three tracks once the hero
-     reserved a column for the kiln - leaving one stat alone on a second row.
+     reserved a column for the firing panel - leaving one stat alone on a second row.
      Four stated columns, then a 2x2 when that stops fitting. */
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1px;
@@ -1650,7 +1650,7 @@ code {
   }
 }
 
-/* --- The kiln ------------------------------------------------------------- */
+/* --- The firing panel ---------------------------------------------------- */
 
 /* A route going in and fired HTML coming out, in the column the hero was
    leaving empty. It argues the headline rather than decorating it.
@@ -1659,7 +1659,7 @@ code {
    zero JavaScript. Character counts live here rather than in style attributes,
    which the default policy would refuse - the same reason the .rise delays do. */
 
-.kiln {
+.stoneware {
   margin-top: 3rem;
   max-width: 30rem;
   border: 1px solid var(--line-soft);
@@ -1671,7 +1671,7 @@ code {
   overflow: hidden;
 }
 
-.kiln__bar {
+.stoneware__bar {
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -1681,7 +1681,7 @@ code {
 }
 
 /* Three discs, drawn rather than marked up: they are furniture, not content. */
-.kiln__dots {
+.stoneware__dots {
   width: 2.4rem;
   height: 0.5rem;
   background-image: radial-gradient(circle, var(--line) 45%, transparent 47%);
@@ -1689,15 +1689,15 @@ code {
   background-repeat: repeat-x;
 }
 
-.kiln__file {
+.stoneware__file {
   font-family: var(--font-mono);
   font-size: 0.72rem;
   letter-spacing: 0.04em;
   color: var(--ash-dim);
 }
 
-.kiln__code,
-.kiln__out {
+.stoneware__code,
+.stoneware__out {
   margin: 0;
   padding: 0.95rem 1rem;
   font-family: var(--font-mono);
@@ -1706,13 +1706,13 @@ code {
   overflow-x: auto;
 }
 
-.kiln__out {
+.stoneware__out {
   padding-top: 0.75rem;
   color: var(--mint);
 }
 
 /* Each line reveals by width, one character at a time. */
-.kiln__line {
+.stoneware__line {
   display: block;
   width: 0;
   overflow: hidden;
@@ -1721,12 +1721,12 @@ code {
   animation: type var(--dur) steps(var(--n)) var(--at) both;
 }
 
-.kiln__code .kiln__line:nth-child(1) { --n: 32; --dur: 0.85s; --at: 0.5s; }
-.kiln__code .kiln__line:nth-child(2) { --n: 48; --dur: 1.2s;  --at: 1.4s; }
-.kiln__code .kiln__line:nth-child(3) { --n: 1;  --dur: 0.1s;  --at: 2.65s; }
+.stoneware__code .stoneware__line:nth-child(1) { --n: 32; --dur: 0.85s; --at: 0.5s; }
+.stoneware__code .stoneware__line:nth-child(2) { --n: 48; --dur: 1.2s;  --at: 1.4s; }
+.stoneware__code .stoneware__line:nth-child(3) { --n: 1;  --dur: 0.1s;  --at: 2.65s; }
 
 /* The caret rests on the last source line once the file is written. */
-.kiln__code .kiln__line:nth-child(3)::after {
+.stoneware__code .stoneware__line:nth-child(3)::after {
   content: "";
   display: inline-block;
   width: 0.5em;
@@ -1737,7 +1737,7 @@ code {
   animation: caret 1.05s steps(1) 2.75s infinite;
 }
 
-.kiln__line--out {
+.stoneware__line--out {
   --n: 38;
   --dur: 0.9s;
   --at: 3.35s;
@@ -1756,14 +1756,14 @@ code {
 
 /* The seam between what you wrote and what was served. The rule fills across
    as the firing happens, which is the same gradient the masthead uses. */
-.kiln__seam {
+.stoneware__seam {
   position: relative;
   margin: 0;
   height: 1px;
   background: var(--line-soft);
 }
 
-.kiln__seam::before {
+.stoneware__seam::before {
   content: "";
   position: absolute;
   inset: 0 auto 0 0;
@@ -1776,7 +1776,7 @@ code {
   to { width: 100%; }
 }
 
-.kiln__seam-label {
+.stoneware__seam-label {
   position: absolute;
   top: -0.55rem;
   left: 1rem;
@@ -1789,7 +1789,7 @@ code {
   color: var(--ash-dim);
 }
 
-.kiln__meta {
+.stoneware__meta {
   display: grid;
   grid-template-columns: 1fr 1fr;
   /* Hairline gaps over the shared background draw every divider at once, so a
@@ -1801,12 +1801,12 @@ code {
   animation: rise 0.6s cubic-bezier(0.16, 0.84, 0.28, 1) 4.1s both;
 }
 
-.kiln__meta > div {
+.stoneware__meta > div {
   padding: 0.7rem 1rem;
   background: var(--stone-850);
 }
 
-.kiln__meta dt {
+.stoneware__meta dt {
   font-family: var(--font-mono);
   font-size: 0.62rem;
   letter-spacing: 0.14em;
@@ -1814,7 +1814,7 @@ code {
   color: var(--ash-dim);
 }
 
-.kiln__meta dd {
+.stoneware__meta dd {
   margin: 0.2rem 0 0;
   font-family: var(--font-mono);
   font-size: 0.95rem;
@@ -1822,13 +1822,13 @@ code {
 }
 
 /* The whole argument, in one value. */
-/* Qualified, because `.kiln__meta dd` outranks a lone class and was repainting
+/* Qualified, because `.stoneware__meta dd` outranks a lone class and was repainting
    these back to chalk - and the two zeros are the whole point of the panel. */
-.kiln__meta dd.kiln__zero {
+.stoneware__meta dd.stoneware__zero {
   color: var(--celadon);
 }
 
-/* Wide enough for two columns: the hero text keeps its measure and the kiln
+/* Wide enough for two columns: the hero text keeps its measure and the firing panel
    takes the space that was empty. */
 @media (min-width: 68rem) {
   /* Reserve the column, then take the panel out of flow into it. A grid span
@@ -1839,7 +1839,7 @@ code {
     padding-right: calc(var(--gutter) + 30rem);
   }
 
-  .kiln {
+  .stoneware {
     position: absolute;
     /* The same clamp the hero uses for its own top padding, so the panel
        starts level with the eyebrow instead of centring on a 1000px column
@@ -1854,21 +1854,500 @@ code {
 /* Typing is decoration on a panel whose content is the point. Reduced motion
    gets the finished state immediately. */
 @media (prefers-reduced-motion: reduce) {
-  .kiln__line {
+  .stoneware__line {
     width: auto;
     animation: none;
   }
 
-  .kiln__seam::before,
-  .kiln__code .kiln__line:nth-child(3)::after {
+  .stoneware__seam::before,
+  .stoneware__code .stoneware__line:nth-child(3)::after {
     animation: none;
   }
 
-  .kiln__seam::before {
+  .stoneware__seam::before {
     width: 100%;
   }
 
-  .kiln__meta {
+  .stoneware__meta {
     animation: none;
+  }
+}
+
+/* --- The ledger ----------------------------------------------------------- */
+
+/* Benchmark rows, laid out as an account rather than a scoreboard.
+
+   Three columns: what was measured, what this framework did, what the other two
+   did. The comparison column is deliberately quieter than the value - a reader
+   should be able to take in the left two and stop there, and go looking for the
+   third only if they want to argue with it. */
+
+.ledger {
+  margin-top: 2rem;
+  border-top: 1px solid var(--line-soft);
+}
+
+.ledger__row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1.4fr) minmax(5rem, 0.6fr) minmax(11rem, 1.3fr);
+  align-items: baseline;
+  gap: 0.4rem 1.5rem;
+  padding: 0.95rem 0.25rem;
+  border-bottom: 1px solid var(--line-soft);
+  transition: background 0.25s ease;
+}
+
+.ledger__row:hover {
+  background: color-mix(in oklab, var(--celadon) 5%, transparent);
+}
+
+.ledger__metric {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--chalk);
+}
+
+.ledger__value {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--celadon);
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger__against {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--ash-dim);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The row this framework loses. Marked rather than dropped: a table that only
+   contains its author's wins is not evidence of anything. The rule is a hairline
+   in the alarm colour, which is the only place that token appears outside an
+   actual error. */
+.ledger__row--lost .ledger__value {
+  color: var(--ash);
+}
+
+.ledger__row--lost {
+  box-shadow: inset 2px 0 0 color-mix(in oklab, var(--alarm) 55%, transparent);
+}
+
+@media (max-width: 46rem) {
+  .ledger__row {
+    grid-template-columns: 1fr auto;
+    row-gap: 0.15rem;
+  }
+
+  .ledger__metric { grid-column: 1; }
+  .ledger__value { grid-column: 2; text-align: right; }
+
+  /* Full width under both, left-aligned: at this size a right-aligned third
+     column would sit under the number and read as part of it. */
+  .ledger__against {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+}
+
+/* --- Grouped documentation cards ------------------------------------------ */
+
+.docset + .docset {
+  margin-top: 2.25rem;
+}
+
+.docset__label {
+  margin-bottom: 0.85rem;
+}
+
+/* --- Stoneware, in section ----------------------------------------------- */
+
+/* routes/ and islands/, drawn as the two firings a glazed pot actually gets.
+
+   Boxes and arrows would have said "one lane is bundled and the other is not"
+   and been forgettable. This says something truer: an island is not a different
+   kind of thing from a route, it is the same body fired a second time, and only
+   the glaze leaves the building. The site is named for the material, so let the
+   material be the diagram.
+
+   One 7s loop drives everything, with the phases offset inside the keyframes
+   rather than by separate delays - that way the sweep, the rails and the two
+   vitrifications cannot drift apart the way staggered delays eventually do.
+
+   No JavaScript. A figure whose argument is that this page ships no runtime is
+   the last place to spend one, and `style-src 'self'` would refuse the inline
+   styles the timings might otherwise want. */
+
+.stonewaresec {
+  --fire: 7s;
+
+  margin: 2.25rem 0 0;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 2.35rem,
+      color-mix(in oklab, var(--ash-dim) 7%, transparent) 2.35rem 2.4rem
+    ),
+    radial-gradient(
+      88% 120% at 50% 118%,
+      color-mix(in oklab, var(--celadon) 13%, transparent),
+      transparent 68%
+    ),
+    var(--grad-surface);
+  box-shadow:
+    0 1px 0 color-mix(in oklab, var(--celadon) 12%, transparent) inset,
+    0 30px 70px -40px rgb(0 0 0 / 0.6);
+}
+
+/* --- the hud --- */
+
+.stonewaresec__hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 1.1rem;
+  border-bottom: 1px solid var(--line-soft);
+  background: color-mix(in oklab, var(--stone-800) 55%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ash-dim);
+}
+
+.stonewaresec__temp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--celadon);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Stoneware vitrifies somewhere around 1280 degrees, which is where the number
+   comes from. The coal breathes on the same loop as the firing. */
+.stonewaresec__coal {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: var(--mint);
+  animation: stonewaresec-coal var(--fire) ease-in-out infinite;
+}
+
+@keyframes stonewaresec-coal {
+  0%, 100% { opacity: 0.35; box-shadow: 0 0 0 0 transparent; }
+  30%      { opacity: 1; box-shadow: 0 0 10px 1px color-mix(in oklab, var(--mint) 70%, transparent); }
+  60%      { opacity: 0.6; }
+}
+
+/* --- the chamber --- */
+
+.stonewaresec__chamber {
+  position: relative;
+  padding: 0.5rem 1.1rem 1.1rem;
+  overflow: hidden;
+}
+
+/* The heat that crosses the shelves. Blurred, and never interactive. */
+.stonewaresec__sweep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 14%;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--celadon) 20%, transparent),
+    color-mix(in oklab, var(--mint) 34%, transparent),
+    color-mix(in oklab, var(--celadon) 20%, transparent),
+    transparent
+  );
+  filter: blur(7px);
+  animation: stonewaresec-sweep var(--fire) cubic-bezier(0.4, 0, 0.5, 1) infinite;
+}
+
+@keyframes stonewaresec-sweep {
+  0%   { transform: translateX(-140%); opacity: 0; }
+  8%   { opacity: 1; }
+  46%  { opacity: 1; }
+  56%  { transform: translateX(760%); opacity: 0; }
+  100% { transform: translateX(760%); opacity: 0; }
+}
+
+/* --- shelves --- */
+
+.stonewaresec__shelf {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(9rem, 1fr) minmax(6rem, 0.8fr) minmax(10rem, 1.15fr);
+  align-items: center;
+  gap: 0.5rem 1.25rem;
+  padding: 1.15rem 0 1.05rem;
+  transition: opacity 0.3s ease;
+}
+
+/* The shelf itself: a drawn ledge rather than a border, so it stops short of
+   the chamber wall the way a real one does. */
+.stonewaresec__shelf + .stonewaresec__shelf::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -0.4rem;
+  right: -0.4rem;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--line) 12%, var(--line) 88%, transparent);
+}
+
+/* Hold one shelf still and the comparison is easier to make. */
+.stonewaresec__chamber:hover .stonewaresec__shelf { opacity: 0.42; }
+.stonewaresec__chamber:hover .stonewaresec__shelf:hover { opacity: 1; }
+
+.stonewaresec__from,
+.stonewaresec__firing,
+.stonewaresec__to,
+.stonewaresec__glaze {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
+
+.stonewaresec__from { color: var(--ash); }
+
+/* The directory is the whole mechanism, so it is the only word here allowed to
+   raise its voice. */
+.stonewaresec__dir {
+  color: var(--chalk);
+  font-weight: 600;
+}
+
+.stonewaresec__dir--isle { color: var(--celadon); }
+
+/* --- the firing rail --- */
+
+.stonewaresec__firing {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.stonewaresec__rail {
+  position: relative;
+  height: 2px;
+  border-radius: 2px;
+  background: color-mix(in oklab, var(--line) 70%, transparent);
+  overflow: hidden;
+}
+
+/* Fills as the sweep reaches it: the firing, happening. */
+.stonewaresec__rail::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 100%;
+  background: linear-gradient(90deg, var(--celadon-deep), var(--mint));
+  box-shadow: 0 0 10px 0 color-mix(in oklab, var(--celadon) 60%, transparent);
+  animation: stonewaresec-fire var(--fire) cubic-bezier(0.4, 0, 0.5, 1) infinite;
+}
+
+@keyframes stonewaresec-fire {
+  0%   { right: 100%; opacity: 1; }
+  6%   { right: 100%; opacity: 1; }
+  50%  { right: 0; opacity: 1; }
+  88%  { right: 0; opacity: 1; }
+  100% { right: 0; opacity: 0; }
+}
+
+.stonewaresec__stamp {
+  font-size: 0.63rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ash-dim);
+}
+
+/* --- the ware --- */
+
+.stonewaresec__to {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  text-align: right;
+}
+
+/* Raw clay on the right of the gradient, fired celadon on the left, with a hot
+   edge between them. Sliding the background is the vitrification: the words
+   themselves change state as the heat reaches them, which is the one thing a
+   drawing of this can do that a sentence cannot. */
+.stonewaresec__ware {
+  background-image: linear-gradient(
+    90deg,
+    var(--celadon) 0 30%,
+    var(--mint) 34%,
+    color-mix(in oklab, var(--ash-dim) 80%, transparent) 39% 100%
+  );
+  background-size: 320% 100%;
+  background-position: 100% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: stonewaresec-vitrify var(--fire) cubic-bezier(0.4, 0, 0.5, 1) infinite;
+}
+
+@keyframes stonewaresec-vitrify {
+  0%   { background-position: 100% 0; }
+  10%  { background-position: 100% 0; }
+  52%  { background-position: 0 0; }
+  100% { background-position: 0 0; }
+}
+
+.stonewaresec__cost {
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--celadon);
+}
+
+/* The zero is the argument. */
+.stonewaresec__cost--zero {
+  color: var(--mint);
+  background: color-mix(in oklab, var(--celadon) 15%, transparent);
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+}
+
+/* --- the glaze firing --- */
+
+/* A branch of the island shelf, not a third source: it spans the full row, sits
+   under it, and is joined by a drawn elbow. It arrives late in the loop,
+   because it is the second firing. */
+.stonewaresec__glaze {
+  position: relative;
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.55rem;
+  padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--celadon) 7%, transparent);
+  animation: stonewaresec-glaze var(--fire) ease-out infinite;
+}
+
+/* Unfired, then lit - not absent, then present.
+
+   The first draft faded this row in at 62% and out at 100%, which left a void
+   under the island shelf for most of the loop and meant a screenshot caught an
+   incomplete diagram more often than a complete one. Holding it in a raw state
+   and firing it says the same thing, reads at any instant, and survives being
+   printed. */
+@keyframes stonewaresec-glaze {
+  0%   { opacity: 0.4; background-color: transparent; }
+  48%  { opacity: 0.4; background-color: transparent; }
+  64%  { opacity: 1; background-color: color-mix(in oklab, var(--celadon) 12%, transparent); }
+  92%  { opacity: 1; background-color: color-mix(in oklab, var(--celadon) 12%, transparent); }
+  100% { opacity: 0.4; background-color: transparent; }
+}
+
+/* Drawn with two borders on one box: down from the shelf, then right. */
+.stonewaresec__elbow {
+  position: absolute;
+  left: 0.55rem;
+  top: -0.5rem;
+  width: 1.1rem;
+  height: 1.4rem;
+  border-left: 1px solid color-mix(in oklab, var(--celadon) 50%, transparent);
+  border-bottom: 1px solid color-mix(in oklab, var(--celadon) 50%, transparent);
+  border-bottom-left-radius: 6px;
+}
+
+.stonewaresec__stamp--glaze { color: var(--celadon); }
+
+/* Already fired by the time it appears, so it does not re-run the vitrify
+   sweep - it is simply the finished surface. */
+.stonewaresec__ware--glaze {
+  animation: none;
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: var(--chalk);
+  margin-left: auto;
+}
+
+@media (max-width: 46rem) {
+  /* Three columns at this width leaves each too narrow to read. Stacked, the
+     shelf still reads top to bottom in the order the firing happens. */
+  .stonewaresec__shelf {
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+    padding: 1rem 0;
+  }
+
+  .stonewaresec__shelf > * {
+    grid-column: 1;
+  }
+
+  .stonewaresec__to {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .stonewaresec__glaze {
+    flex-wrap: wrap;
+    gap: 0.35rem 0.7rem;
+    padding-left: 1.6rem;
+  }
+
+  .stonewaresec__ware--glaze { margin-left: 0; }
+
+  .stonewaresec__elbow {
+    left: 0.35rem;
+    top: -0.4rem;
+    height: 1.05rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Everything here is a loop, and a loop is exactly what this setting is
+     asking about. Park each element in its finished state: fired rails, fired
+     ware, the glaze present. The diagram still says what it says. */
+  .stonewaresec__sweep {
+    animation: none;
+    opacity: 0;
+  }
+
+  .stonewaresec__coal {
+    animation: none;
+    opacity: 1;
+  }
+
+  .stonewaresec__rail::after {
+    animation: none;
+    right: 0;
+    opacity: 1;
+  }
+
+  .stonewaresec__ware {
+    animation: none;
+    background-position: 0 0;
+  }
+
+  .stonewaresec__glaze {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 }

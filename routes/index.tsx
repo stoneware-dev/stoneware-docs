@@ -2,16 +2,12 @@ import { seo } from "stoneware";
 import type { PageProps } from "stoneware";
 import { Layout } from "../lib/Layout.tsx";
 import { CodeBlock } from "../lib/highlight.tsx";
-import { DOCS } from "../lib/docs.ts";
+import { DOC_GROUPS, pagesInGroup } from "../lib/docs.ts";
 import { REPO_SLUG, REPO_URL, SITE_URL, siteURL } from "../lib/site.ts";
 import { themeFromRequest } from "../lib/theme.ts";
 import InstallCommand from "../islands/InstallCommand.tsx";
 import LiveCounter from "../islands/LiveCounter.tsx";
 
-/**
- * Measured on this site's own production build (gzipped), not estimated.
- * Reproduce with: stoneware build --root example, then gzip .stoneware/static/*.js
- */
 export function head(_props: PageProps) {
   return seo({
     canonical: siteURL("/"),
@@ -37,11 +33,24 @@ export function head(_props: PageProps) {
   });
 }
 
+/**
+ * Four numbers a reader can check, rather than four that flatter.
+ *
+ * The middle two are the honest cost of the island model and they are stated
+ * rather than buried: a page that hydrates something downloads 4.8 KB gzipped —
+ * the shared runtime at 3.4, a second shared chunk at 1.0, and the island's own
+ * entry at 0.2. Every island after the first adds only that last figure,
+ * because the runtime is hoisted out once.
+ *
+ * Measured on a production build, gzip -9. The 4.8 KB agrees with the figure
+ * the benchmark reports for this framework's index page, which is the same
+ * quantity arrived at from the other direction.
+ */
 const STATS = [
-  { label: "Client runtime", value: "3.2 KB" },
-  { label: "One island", value: "0.2 KB" },
   { label: "Page with no islands", value: "0 B" },
-  { label: "Runtime deps", value: "1" },
+  { label: "Page with one island", value: "4.8 KB" },
+  { label: "Each island after that", value: "0.2 KB" },
+  { label: "Runtime dependencies", value: "1" },
 ];
 
 const PROBLEMS = [
@@ -122,6 +131,50 @@ const SEO_POINTS = [
   },
 ];
 
+/**
+ * One named run: results/history/2026-08-19T18-24-23.json in the benchmark
+ * repository. Sizes are deterministic between runs; timings are not, and the
+ * tail least of all — which is why the tail is not quoted here at all.
+ *
+ * Build *time* is deliberately absent. `stoneware build` emits a server bundle
+ * while Astro and Next prerender 21 files, so the comparison is not
+ * like-for-like and putting it on a landing page would be the flattering
+ * reading. Peak memory during the same build is the honest half of that column.
+ */
+const BENCH = [
+  {
+    metric: "JavaScript on an article page",
+    stoneware: "0 B",
+    against: "Astro 0 B · Next.js 576 KB",
+  },
+  {
+    metric: "Pages shipping no JavaScript",
+    stoneware: "20 of 21",
+    against: "Astro 20 of 21 · Next.js 0 of 21",
+  },
+  {
+    metric: "JavaScript on the one interactive page",
+    stoneware: "4.8 KB",
+    against: "Astro 0.3 KB · Next.js 173.7 KB",
+    lost: true,
+  },
+  {
+    metric: "Peak memory during the build",
+    stoneware: "88 MB",
+    against: "Astro 356 MB · Next.js 1143 MB",
+  },
+  {
+    metric: "Median time to first byte",
+    stoneware: "1.13 ms",
+    against: "Astro 1.74 ms · Next.js 1.84 ms",
+  },
+  {
+    metric: "Requests per second, 100 connections",
+    stoneware: "2236",
+    against: "Astro 1984 · Next.js 920",
+  },
+];
+
 const ISLAND_EXAMPLE = `// islands/Counter.tsx — the only file here that ships JS
 import { signal } from "stoneware/signals";
 
@@ -187,7 +240,7 @@ export default function Home({ request }: PageProps) {
           <span>Vitrified</span>
         </div>
 
-        {/* The kiln: a route going in and fired HTML coming out.
+        {/* A route going in and fired HTML coming out.
 
             It sits in the column the hero was leaving empty, and it argues the
             headline rather than decorating it — you watch a template become a
@@ -195,24 +248,24 @@ export default function Home({ request }: PageProps) {
             steps(), so the panel that claims zero JavaScript is itself zero
             JavaScript. Per-line widths live in the stylesheet because a style
             attribute would be refused by the default policy. */}
-        <aside class="kiln">
-          <header class="kiln__bar">
-            <span class="kiln__dots" aria-hidden="true" />
-            <span class="kiln__file">routes/index.tsx</span>
+        <aside class="stoneware">
+          <header class="stoneware__bar">
+            <span class="stoneware__dots" aria-hidden="true" />
+            <span class="stoneware__file">routes/index.tsx</span>
           </header>
 
-          <div class="kiln__code">
-            <span class="kiln__line">export default function Page() {"{"}</span>
-            <span class="kiln__line">{"  return <article>Fired, not shipped.</article>;"}</span>
-            <span class="kiln__line">{"}"}</span>
+          <div class="stoneware__code">
+            <span class="stoneware__line">export default function Page() {"{"}</span>
+            <span class="stoneware__line">{"  return <article>Fired, not shipped.</article>;"}</span>
+            <span class="stoneware__line">{"}"}</span>
           </div>
 
-          <p class="kiln__seam">
-            <span class="kiln__seam-label">firing</span>
+          <p class="stoneware__seam">
+            <span class="stoneware__seam-label">firing</span>
           </p>
 
-          <div class="kiln__out">
-            <span class="kiln__line kiln__line--out">
+          <div class="stoneware__out">
+            <span class="stoneware__line stoneware__line--out">
               {"<article>Fired, not shipped.</article>"}
             </span>
           </div>
@@ -220,14 +273,14 @@ export default function Home({ request }: PageProps) {
           {/* What that route costs, for the page above and nothing else. The
               two zeros are the argument; the other two are there so they are
               read as measurements rather than as a slogan. */}
-          <dl class="kiln__meta">
+          <dl class="stoneware__meta">
             <div>
               <dt>HTML</dt>
               <dd>1.1 KB</dd>
             </div>
             <div>
               <dt>JavaScript</dt>
-              <dd class="kiln__zero">0 B</dd>
+              <dd class="stoneware__zero">0 B</dd>
             </div>
             <div>
               <dt>Requests</dt>
@@ -235,7 +288,7 @@ export default function Home({ request }: PageProps) {
             </div>
             <div>
               <dt>Hydrated nodes</dt>
-              <dd class="kiln__zero">0</dd>
+              <dd class="stoneware__zero">0</dd>
             </div>
           </dl>
         </aside>
@@ -260,6 +313,96 @@ export default function Home({ request }: PageProps) {
         </dl>
         <p class="demo-note">
           <a href="/docs/why">All seven, and the ones it deliberately does not solve →</a>
+        </p>
+      </section>
+
+      {/* The separation, in the material the framework is named for.
+
+          A glazed pot is fired twice: a bisque firing that makes the body, then
+          a glaze firing for the surface. That is exactly the difference between
+          the two directories, and it is a better statement of it than boxes and
+          arrows — an island is not a different kind of thing from a route, it
+          is the same thing fired a second time. Only the glaze travels.
+
+          The signature is the vitrification sweep: a heat band crosses the
+          chamber and the shelf behind it turns from raw grey to celadon,
+          because the transformation is the argument. The glaze branch lights a
+          beat later, so the sequence reads as two firings rather than one.
+
+          Zero JavaScript, and that is load-bearing rather than incidental — a
+          section claiming this page ships no runtime cannot be the thing that
+          breaks it. Every timing is in the stylesheet, which is also the only
+          place the default CSP will accept one. */}
+      <section class="shell section reveal">
+        <div class="section__head">
+          <p class="eyebrow">The separation</p>
+          <h2>Two directories, two destinations</h2>
+          <p>
+            Nothing scans your files for a directive and decides. The boundary is a directory, and
+            the build enforces it — a route is fired once and is finished, an island is fired again
+            for the surface that ships.
+          </p>
+        </div>
+
+        <figure class="stonewaresec">
+          <figcaption class="stonewaresec__hud">
+            <span class="stonewaresec__title">Stoneware, in section</span>
+            <span class="stonewaresec__temp" aria-hidden="true">
+              <i class="stonewaresec__coal" />
+              1280 °C
+            </span>
+          </figcaption>
+
+          <div class="stonewaresec__chamber">
+            {/* Decorative: the heat that crosses both shelves. Drawn rather
+                than marked up, because it is furniture, not content. */}
+            <span class="stonewaresec__sweep" aria-hidden="true" />
+
+            <div class="stonewaresec__shelf">
+              <p class="stonewaresec__from">
+                <span class="stonewaresec__dir">routes/</span>blog/[slug].tsx
+              </p>
+              <p class="stonewaresec__firing">
+                <span class="stonewaresec__rail" aria-hidden="true" />
+                <span class="stonewaresec__stamp">one firing</span>
+              </p>
+              <p class="stonewaresec__to">
+                <span class="stonewaresec__ware">&lt;article&gt;…&lt;/article&gt;</span>
+                <b class="stonewaresec__cost stonewaresec__cost--zero">0 B ships</b>
+              </p>
+            </div>
+
+            <div class="stonewaresec__shelf stonewaresec__shelf--glazed">
+              <p class="stonewaresec__from">
+                <span class="stonewaresec__dir stonewaresec__dir--isle">islands/</span>Counter.tsx
+              </p>
+              <p class="stonewaresec__firing">
+                <span class="stonewaresec__rail" aria-hidden="true" />
+                <span class="stonewaresec__stamp">the same firing</span>
+              </p>
+              <p class="stonewaresec__to">
+                <span class="stonewaresec__ware">&lt;button&gt;…&lt;/button&gt;</span>
+                <b class="stonewaresec__cost stonewaresec__cost--zero">0 B ships</b>
+              </p>
+
+              {/* The second firing. Indented under the island shelf and joined
+                  to it by a drawn elbow, because it is a branch of that row
+                  rather than a third source. */}
+              <p class="stonewaresec__glaze">
+                <span class="stonewaresec__elbow" aria-hidden="true" />
+                <span class="stonewaresec__stamp stonewaresec__stamp--glaze">then a glaze firing</span>
+                <span class="stonewaresec__ware stonewaresec__ware--glaze">Counter-a1b2c3.js</span>
+                <b class="stonewaresec__cost">0.2 KB ships</b>
+              </p>
+            </div>
+          </div>
+        </figure>
+
+        <p class="demo-note">
+          Both shelves come out of the first firing as finished HTML, which is why an island is
+          never an empty box waiting for its script. Only the glaze is compiled for the browser, and
+          only the island has one.{" "}
+          <a href="/docs/how-it-works">The whole pipeline, step by step →</a>
         </p>
       </section>
 
@@ -341,19 +484,65 @@ export default function Home({ request }: PageProps) {
         </p>
       </section>
 
+      {/* Evidence, with the weakest number in the table rather than omitted.
+
+          The landing page had no link to the benchmark at all, which is the
+          one thing here that is measured rather than asserted. Every figure is
+          from a single named run against twenty articles built identically in
+          all three frameworks — including the row where Astro wins. Quoting
+          only the favourable rows is how a benchmark stops being one. */}
+      <section class="shell section reveal">
+        <div class="section__head">
+          <p class="eyebrow">Measured</p>
+          <h2>Numbers, and where they came from</h2>
+          <p>
+            Twenty articles and an index — the same content, the same markup, built three ways and
+            served by each framework's own production server.
+          </p>
+        </div>
+        <div class="ledger">
+          {BENCH.map((row) => (
+            <div class={`ledger__row${row.lost ? " ledger__row--lost" : ""}`}>
+              <p class="ledger__metric">{row.metric}</p>
+              <p class="ledger__value">{row.stoneware}</p>
+              <p class="ledger__against">{row.against}</p>
+            </div>
+          ))}
+        </div>
+        <p class="demo-note">
+          The third row is a loss and it stays on the page: a plain script tag beats a hydrated
+          island for one text box, and 0.3 KB against 4.8 KB is not close.{" "}
+          <a href="/docs/benchmark">The full study, and what varies between runs →</a>
+        </p>
+      </section>
+
       <section class="shell section reveal">
         <div class="section__head">
           <p class="eyebrow">Documentation</p>
           <h2>Read on</h2>
         </div>
-        <div class="card-grid">
-          {DOCS.map((page) => (
-            <a class="card" href={`/docs/${page.slug}`}>
-              <h3>{page.title}</h3>
-              <p>{page.summary}</p>
-            </a>
-          ))}
-        </div>
+        {/* Grouped, and Releases left out.
+
+            This used to render every page in DOCS as one flat grid. At thirty
+            pages that had stopped being a reading order — the last thing on the
+            landing page was a card for v0.1.4, which is not what anyone arrives
+            wanting. The groups are the sidebar's, so the two cannot disagree. */}
+        {DOC_GROUPS.filter((group) => group.label !== "Releases").map((group) => (
+          <div class="docset">
+            <p class="eyebrow docset__label">{group.label}</p>
+            <div class="card-grid">
+              {pagesInGroup(group).map((page) => (
+                <a class="card" href={`/docs/${page.slug}`}>
+                  <h3>{page.title}</h3>
+                  <p>{page.summary}</p>
+                </a>
+              ))}
+            </div>
+          </div>
+        ))}
+        <p class="demo-note">
+          <a href="/docs/whats-new">What changed in 0.2.0, and every release before it →</a>
+        </p>
       </section>
     </Layout>
   );
